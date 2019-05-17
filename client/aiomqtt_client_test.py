@@ -44,7 +44,7 @@ async def dpow_client():
     def on_message(client, userdata, message):
         print("Message: {}: {}".format(message.topic, message.payload.decode("utf-8")))
         try:
-            block_hash, amount = message.payload.decode("utf-8").split(',')
+            block_hash = message.payload.decode("utf-8")
         except:
             print("Could not parse message")
             return

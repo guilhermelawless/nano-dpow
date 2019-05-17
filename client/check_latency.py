@@ -15,14 +15,14 @@ def on_connect(client, userdata, rc):
 def on_message(client, userdata, msg):
     contents = msg.payload.decode("utf-8")
     if 'work' in msg.topic:
-        block_hash, amount = msg.payload.decode("utf-8").split(',')
+        block_hash = msg.payload.decode("utf-8")
         print('Hash seen: {}'.format(block_hash))
         works[block_hash] = perf_counter()
     elif 'result' in msg.topic:
         block_hash = msg.topic.split('result/')[1]
         if block_hash in works:
             work = msg.payload.decode("utf-8")
-            print('Work complete for hash {} in {}ms'.format(block_hash, int(1000*(perf_counter() - works[block_hash]))))
+            print('Work seen for hash {} after {}ms'.format(block_hash, int(1000*(perf_counter() - works[block_hash]))))
         else:
             print('Result for {} received before seen'.format(block_hash))
 
