@@ -9,7 +9,6 @@ import aioredis
 
 
 def display_wrapper():
-    return None
     try:
         import fourletterphat
         obj = fourletterphat
@@ -40,25 +39,25 @@ class DpowServer(object):
             loop=loop)
 
     async def wait_init(self):
-        await self.redis_pool
+        self.redis_pool = await self.redis_pool
 
-    def __del__(self):
+    async def close(self):
         self.redis_pool.close()
-        #TODO: how to wait_close() ?
+        await self.redis_pool.wait_closed()
 
     async def redis_insert(self, key: str, value: str):
-        await self.redis_pool.execute('SET', key, value )
+        await self.redis_pool.execute('set', key, value )
 
     async def redis_delete(self, key: str):
-        outcome = await self.redis_pool.execute('DELETE', key)
+        outcome = await self.redis_pool.execute('delete', key)
         print("Delete: {} {}".format(outcome, key))
 
     async def redis_getkey(self, key: str):
-        val = await self.redis_pool.execute('GET', key)
+        val = await self.redis_pool.execute('get', key)
         return val.decode("utf-8")
 
     async def redis_exists(self, key: str):
-        exists = await redis.execute('EXISTS', key)
+        exists = await self.redis_pool.execute('exists', key)
         return exists
 
     @asyncio.coroutine
@@ -117,9 +116,16 @@ if display:
     display.show()
 
 server = DpowServer()
-loop.run_until_complete(server.wait_init())
+
+async def startup(app):
+    await server.wait_init()
+
+async def cleanup(app):
+    await server.close()
 
 app = web.Application(loop=loop)
 app.router.add_post('/', server.post_handle)
+app.on_startup.append(startup)
+app.on_cleanup.append(cleanup)
 
 web.run_app(app, port=5030)
