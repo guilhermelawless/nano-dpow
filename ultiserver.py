@@ -18,7 +18,6 @@ def display_wrapper():
     except PermissionError as e:
         print(e)
         obj = None
-
     return obj
 
 
@@ -29,7 +28,6 @@ redis_server = "redis://localhost"
 loop = asyncio.get_event_loop()
 
 
-
 class DpowServer(object):
 
     def __init__(self):
@@ -38,8 +36,12 @@ class DpowServer(object):
             minsize=5, maxsize=15,
             loop=loop)
 
+        self.mqttc = aiomqtt.Client(asyncio.get_event_loop(), "nanotest")
+        self.mqtt_connect = self.mqttc.connect(host, port=1883, keepalive=10)
+
     async def wait_init(self):
         self.redis_pool = await self.redis_pool
+        await self.mqtt_connect
 
     async def close(self):
         self.redis_pool.close()
@@ -49,7 +51,7 @@ class DpowServer(object):
         await self.redis_pool.execute('set', key, value )
 
     async def redis_delete(self, key: str):
-        outcome = await self.redis_pool.execute('delete', key)
+        outcome = await self.redis_pool.execute('del', key)
         print("Delete: {} {}".format(outcome, key))
 
     async def redis_getkey(self, key: str):
@@ -61,16 +63,12 @@ class DpowServer(object):
         return exists
 
     @asyncio.coroutine
-    async def send_mqtt(topic, message):
-        mqttc = aiomqtt.Client(asyncio.get_event_loop(), "nanotest")
-        await mqttc.connect(host, port=1883, keepalive=10)
-        mqttc.publish(topic, message)
-        mqttc.disconnect()
+    async def send_mqtt(self, topic, message):
+        self.mqttc.publish(topic, message)
 
     def on_connect(client, userdata, flags, rc):
         print("Connected to Rx")
         client.subscribe("work/precache")
-
 
     async def post_handle(self, request):
         data = await request.json()
@@ -111,14 +109,14 @@ class DpowServer(object):
 
         return web.Response(text="test")
 
-if display:
-    display.print_str('dPoW')
-    display.show()
-
 server = DpowServer()
 
 async def startup(app):
-    await server.wait_init()
+    init = server.wait_init()
+    if display:
+        display.print_str('dPoW')
+        display.show()
+    await init
 
 async def cleanup(app):
     await server.close()
