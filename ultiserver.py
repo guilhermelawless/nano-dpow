@@ -108,7 +108,7 @@ class DpowServer(object):
         data = await request.json()
         account_exists = await self.redis_exists(data['account'])
         if account_exists == 1:
-            if display: display.set_decimal(1,True)
+            if display: display.set_decimal(1,True); display.show()
 
             print("Old account: {}".format(data['account']))
             frontier = await self.redis_getkey(data['account'])
@@ -126,10 +126,10 @@ class DpowServer(object):
             else:
                 print("Duplicate")
 
-            if display: display.set_decimal(0,False)
+            if display: display.set_decimal(1,False); display.show()
 
         else:
-            if display: display.set_decimal(0,True)
+            if display: display.set_decimal(0,True); display.show()
 
             print("New account: {}".format(data['account']))
             await asyncio.gather(
@@ -139,7 +139,7 @@ class DpowServer(object):
             )
             print("Inserted")
 
-            if display: display.set_decimal(0,False)
+            if display: display.set_decimal(0,False); display.show()
 
         return web.Response(text="test")
 
