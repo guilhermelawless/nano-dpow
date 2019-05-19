@@ -79,7 +79,7 @@ class DpowServer(object):
         exists = await self.redis_pool.execute('exists', key)
         return exists
 
-    async def handle_message(self, message):
+    def handle_message(self, message):
         print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         try:
             block_hash = message.topic.split('result/')[1]
@@ -101,8 +101,8 @@ class DpowServer(object):
             print("Client exception: {}".format(e))
 
     @asyncio.coroutine
-    def send_mqtt(self, topic, message, qos=QOS_0):
-        yield from self.mqttc.publish(topic, str.encode(message), qos=qos)
+    async def send_mqtt(self, topic, message, qos=QOS_0):
+        await self.mqttc.publish(topic, str.encode(message), qos=qos)
 
     async def post_handle(self, request):
         data = await request.json()
