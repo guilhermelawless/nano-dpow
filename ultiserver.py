@@ -3,9 +3,10 @@
 from functools import wraps
 import asyncio
 from aiohttp import web
-import aiomqtt
 import time
 import aioredis
+from hbmqtt.client import MQTTClient, ClientException, ConnectException
+from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 
 def display_wrapper():
@@ -21,9 +22,8 @@ def display_wrapper():
     return obj
 
 
-#host = "dangilsystem.zapto.org"
+# host = "dangilsystem.zapto.org"
 display = display_wrapper()
-host = "localhost"
 redis_server = "redis://localhost"
 loop = asyncio.get_event_loop()
 
@@ -36,16 +36,33 @@ class DpowServer(object):
             minsize=5, maxsize=15,
             loop=loop)
 
-        self.mqttc = aiomqtt.Client(asyncio.get_event_loop(), "nanotest")
-        self.mqtt_connect = self.mqttc.connect(host, port=1883, keepalive=10)
+        self.mqttc = MQTTClient(
+            loop=loop,
+            config={
+                "auto_reconnect": True,
+                "reconnect_retries": 3,
+                "reconnect_max_interval": 10,
+                "default_qos": 0
+            }
+        )
+        self.mqtt_connect = self.mqttc.connect("mqtt://localhost", cleansession=True)
 
     async def wait_init(self):
         self.redis_pool = await self.redis_pool
         await self.mqtt_connect
 
+    async def setup(self):
+        await self.mqttc.subscribe([
+                ("result/#", QOS_1)
+            ])
+
     async def close(self):
         self.redis_pool.close()
-        await self.redis_pool.wait_closed()
+        mqtt_disconect = self.mqttc.disconnect()
+        await asyncio.gather((
+                self.redis_pool.wait_closed(),
+                mqtt_disconnect
+            ))
 
     async def redis_insert(self, key: str, value: str):
         await self.redis_pool.execute('set', key, value )
@@ -62,13 +79,29 @@ class DpowServer(object):
         exists = await self.redis_pool.execute('exists', key)
         return exists
 
-    @asyncio.coroutine
-    async def send_mqtt(self, topic, message):
-        self.mqttc.publish(topic, message)
+    def handle_message(self, message):
+        print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
+        try:
+            block_hash = message.topic.split('result/')[1]
+            work = message.data.decode("utf-8")
+            print(block_hash, work)
+        except:
+            print("Could not parse message")
+            return
+        #TODO work validate, use nanolib?
 
-    def on_connect(client, userdata, flags, rc):
-        print("Connected to Rx")
-        client.subscribe("work/precache")
+    @asyncio.coroutine
+    async def mqtt_loop(self):
+        try:
+            while 1:
+                message = await self.mqttc.deliver_message()
+                self.handle_message(message)
+        except ClientException as e:
+            print("Client exception: {}".format(e))
+
+    @asyncio.coroutine
+    async def send_mqtt(self, topic, message, qos=QOS_0):
+        self.mqttc.publish(topic, str.encode(message), qos=qos)
 
     async def post_handle(self, request):
         data = await request.json()
@@ -117,6 +150,12 @@ async def startup(app):
         display.print_str('dPoW')
         display.show()
     await init
+    await server.setup()
+    print("Server created, looping")
+    task = loop.create_task(server.mqtt_loop())
+    asyncio.ensure_future(task, loop=loop)
+
+
 
 async def cleanup(app):
     await server.close()
