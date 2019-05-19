@@ -45,7 +45,7 @@ class DpowServer(object):
                 "default_qos": 0
             }
         )
-        self.mqtt_connect = self.mqttc.connect("mqtt://localhost", cleansession=True)
+        self.mqtt_connect = self.mqttc.connect("mqtt://localhost:1883", cleansession=True)
 
     async def wait_init(self):
         self.redis_pool = await self.redis_pool
@@ -79,7 +79,7 @@ class DpowServer(object):
         exists = await self.redis_pool.execute('exists', key)
         return exists
 
-    def handle_message(self, message):
+    async def handle_message(self, message):
         print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         try:
             block_hash = message.topic.split('result/')[1]
@@ -89,6 +89,7 @@ class DpowServer(object):
             print("Could not parse message")
             return
         #TODO work validate, use nanolib?
+        #TODO need to send cancel command
 
     @asyncio.coroutine
     async def mqtt_loop(self):
@@ -100,8 +101,8 @@ class DpowServer(object):
             print("Client exception: {}".format(e))
 
     @asyncio.coroutine
-    async def send_mqtt(self, topic, message, qos=QOS_0):
-        self.mqttc.publish(topic, str.encode(message), qos=qos)
+    def send_mqtt(self, topic, message, qos=QOS_0):
+        yield from self.mqttc.publish(topic, str.encode(message), qos=qos)
 
     async def post_handle(self, request):
         data = await request.json()
