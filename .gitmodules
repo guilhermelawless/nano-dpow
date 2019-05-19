@@ -1,0 +1,3 @@
+[submodule "lib/nanolib"]
+	path = lib/nanolib
+	url = https://github.com/Matoking/nanolib.git

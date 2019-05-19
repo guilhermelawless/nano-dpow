@@ -97,7 +97,7 @@ class DpowServer(object):
         # As we've got work now send cancel command to clients
         await self.send_mqtt("work/precache", "cancel:{}".format(block_hash))
 
-        # Return work to service
+        #TODO Return work to service
 
         # Update redis database
         await asyncio.gather(
