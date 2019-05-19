@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Definitions
+#    client - pow calculators, they subscribe to a particular work topic and process the hashes, returning work
+#    service - system that uses dpow for calculating pow, access is via POST
+
 from functools import wraps
 import asyncio
 from aiohttp import web
@@ -79,7 +83,7 @@ class DpowServer(object):
         exists = await self.redis_pool.execute('exists', key)
         return exists
 
-    def handle_message(self, message):
+    async def handle_message(self, message):
         print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         try:
             block_hash = message.topic.split('result/')[1]
@@ -89,19 +93,30 @@ class DpowServer(object):
             print("Could not parse message")
             return
         #TODO work validate, use nanolib?
-        #TODO need to send cancel command
+
+        # As we've got work now send cancel command to clients
+        await self.send_mqtt("work/precache", "cancel:{}".format(block_hash))
+
+        # Return work to service
+
+        # Update redis database
+        await asyncio.gather(
+            self.redis_insert(block_hash , work)
+        )
+
 
     @asyncio.coroutine
     async def mqtt_loop(self):
         try:
             while 1:
                 message = await self.mqttc.deliver_message()
-                self.handle_message(message)
+                await self.handle_message(message)
+
         except ClientException as e:
             print("Client exception: {}".format(e))
 
-    @asyncio.coroutine
     async def send_mqtt(self, topic, message, qos=QOS_0):
+        print("Sending send_mqtt")
         await self.mqttc.publish(topic, str.encode(message), qos=qos)
 
     async def post_handle(self, request):
