@@ -17,8 +17,7 @@ async def dpow_client():
     async def send_work(client, block_hash, work):
         await client.publish(f"result/{block_hash}", str.encode(work, 'utf-8'), qos=QOS_1)
 
-    def handle_message(message):
-        print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
+    def handle_work(message):
         try:
             block_hash = message.data.decode("utf-8")
         except:
@@ -26,10 +25,29 @@ async def dpow_client():
             return
 
         if len(block_hash) == 64:
-            task = loop.create_task(work_handler.queue_work(block_hash, 'ffffffc000000000'))
-            asyncio.ensure_future(task, loop=loop)
+            asyncio.ensure_future(work_handler.queue_work(block_hash, 'ffffffc000000000'), loop=loop)
         else:
             print(f"Invalid hash {block_hash}")
+
+    def handle_cancel(message):
+        try:
+            block_hash = message.data.decode("utf-8")
+        except:
+            print("Could not parse message")
+            return
+        if len(block_hash) == 64:
+            if work_handler.is_queued(block_hash):
+                asyncio.ensure_future(work_handler.queue_cancel(block_hash), loop=loop)
+        else:
+            print(f"Invalid hash {block_hash}")
+
+    def handle_message(message):
+        print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
+        if "cancel" in message.topic:
+            handle_cancel(message)
+        elif "work" in message.topic:
+            handle_work(message)
+
 
     client = MQTTClient(
             loop=loop,
@@ -58,7 +76,8 @@ async def dpow_client():
     client.config['reconnect_retries'] = 5000
 
     await client.subscribe([
-            ("work/precache/#", QOS_0)
+            ("work/precache/#", QOS_0),
+            ("cancel/#", QOS_1)
         ])
 
     try:
