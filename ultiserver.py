@@ -11,6 +11,7 @@ import time
 import aioredis
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
+import nanolib
 
 
 def display_wrapper():
@@ -31,14 +32,14 @@ display = display_wrapper()
 redis_server = "redis://localhost"
 loop = asyncio.get_event_loop()
 
-
 class DpowServer(object):
 
     def __init__(self):
         self.redis_pool = aioredis.create_pool(
             redis_server,
             minsize=5, maxsize=15,
-            loop=loop)
+            loop=loop
+        )
 
         self.mqttc = MQTTClient(
             loop=loop,
@@ -49,24 +50,21 @@ class DpowServer(object):
                 "default_qos": 0
             }
         )
-        self.mqtt_connect = self.mqttc.connect("mqtt://localhost:1883", cleansession=True)
-
-    async def wait_init(self):
-        self.redis_pool = await self.redis_pool
-        await self.mqtt_connect
+        self.mqttc_connect = self.mqttc.connect("mqtt://localhost:1883", cleansession=True)
 
     async def setup(self):
+        self.redis_pool = await self.redis_pool
+        await self.mqttc_connect
         await self.mqttc.subscribe([
-                ("result/#", QOS_1)
-            ])
+            ("result/#", QOS_1)
+        ])
 
     async def close(self):
         self.redis_pool.close()
-        mqtt_disconect = self.mqttc.disconnect()
         await asyncio.gather((
-                self.redis_pool.wait_closed(),
-                mqtt_disconnect
-            ))
+            self.redis_pool.wait_closed(),
+            self.mqttc.disconnect()
+        ))
 
     async def redis_insert(self, key: str, value: str):
         await self.redis_pool.execute('set', key, value )
@@ -92,10 +90,19 @@ class DpowServer(object):
         except:
             print("Could not parse message")
             return
-        #TODO work validate, use nanolib?
+
+        #TODO Check if we needed this work, and handle the case where multiple clients return work at the same time
+
+        try:
+            nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
+        except nanolib.InvalidWork:
+            # Invalid work, ignore
+            print("Invalid work")
+            return
 
         # As we've got work now send cancel command to clients
-        await self.send_mqtt("work/precache", "cancel:{}".format(block_hash))
+        # No need to wait on this here
+        asyncio.ensure_future(self.send_mqtt("cancel/precache", block_hash, qos=QOS_1))
 
         #TODO Return work to service
 
@@ -116,7 +123,6 @@ class DpowServer(object):
             print("Client exception: {}".format(e))
 
     async def send_mqtt(self, topic, message, qos=QOS_0):
-        print("Sending send_mqtt")
         await self.mqttc.publish(topic, str.encode(message), qos=qos)
 
     async def post_handle(self, request):
@@ -133,11 +139,9 @@ class DpowServer(object):
                 await asyncio.gather(
                     self.redis_insert(data['account'], data['hash']),
                     self.redis_delete(frontier),
-                    self.redis_insert(data['hash'] , "0")
+                    self.redis_insert(data['hash'] , "0"),
+                    self.send_mqtt("work/precache", data['hash'])
                 )
-                print("Deleted")
-                print("New Entry Inserted")
-                await self.send_mqtt("work/precache", data['hash'])
             else:
                 print("Duplicate")
 
@@ -152,31 +156,28 @@ class DpowServer(object):
                 self.redis_insert(data['hash'], "0"),
                 self.send_mqtt("work/precache", data['hash'])
             )
-            print("Inserted")
 
             if display: display.set_decimal(0,False); display.show()
 
         return web.Response(text="test")
 
+
 server = DpowServer()
 
 async def startup(app):
-    init = server.wait_init()
     if display:
         display.print_str('dPoW')
         display.show()
-    await init
     await server.setup()
     print("Server created, looping")
-    task = loop.create_task(server.mqtt_loop())
-    asyncio.ensure_future(task, loop=loop)
-
+    asyncio.ensure_future(server.mqtt_loop(), loop=loop)
 
 
 async def cleanup(app):
     await server.close()
 
-app = web.Application(loop=loop)
+
+app = web.Application()
 app.router.add_post('/', server.post_handle)
 app.on_startup.append(startup)
 app.on_cleanup.append(cleanup)
