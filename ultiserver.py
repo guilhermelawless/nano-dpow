@@ -115,7 +115,7 @@ class DpowServer(object):
         try:
             while 1:
                 await self.send_mqtt("heartbeat", "", qos=QOS_1)
-                await asyncio.sleep(10)
+                await asyncio.sleep(1)
         except:
             print("Hearbeat failure")
             pass
