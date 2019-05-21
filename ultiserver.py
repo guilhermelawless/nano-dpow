@@ -50,6 +50,7 @@ class DpowServer(object):
                 "default_qos": 0
             }
         )
+        self.ondemand_wait = 0
         self.mqttc_connect = self.mqttc.connect("mqtt://localhost:1883", cleansession=True)
 
     async def setup(self):
@@ -97,6 +98,11 @@ class DpowServer(object):
         except nanolib.InvalidWork:
             # Invalid work, ignore
             print("Invalid work")
+            return
+
+        if self.ondemand_wait > 0:
+#            asyncio.async(ondemand_queue.put(message.data.decode("utf-8"))) 
+            ondemand_queue.put(message.data.decode("utf-8")) 
             return
 
         # As we've got work now send cancel command to clients
@@ -164,7 +170,7 @@ class DpowServer(object):
     async def request_handle(self, request):
         data = await request.json()
         print(data)
-        if 'hash' in data and if 'address' in data and if 'api_key' in data:
+        if 'hash' in data and 'address' in data and 'api_key' in data:
             #Verify API Key
             service_exists = await self.redis_exists(data['api_key'])
             if service_exists != 1:
@@ -178,6 +184,10 @@ class DpowServer(object):
             #If not in db, request on demand work, return it and insert address and hash into redis db
             else:
                 work = await self.on_demand_publish(data['hash'])
+                self.ondemand_wait += 1
+                while 1:
+                    work = await ondemand_queue.get()
+                self.ondemand_wait -= 1
                 return web.Response(text=work)
 
             # Log stats
@@ -193,6 +203,7 @@ async def startup(app):
     await server.setup()
     print("Server created, looping")
     asyncio.ensure_future(server.mqtt_loop(), loop=loop)
+    ondemand_queue = asyncio.Queue(loop)
 
 
 async def cleanup(app):
