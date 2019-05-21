@@ -88,15 +88,15 @@ async def dpow_client():
         print("Checking for server availability")
         await client.deliver_message(timeout=2)
         print("Server online!")
-        await client.unsubscribe("work/precache/#")
+        await client.unsubscribe("heartbeat")
     except asyncio.TimeoutError:
         print("Server is offline :(")
         await client.disconnect()
         return
 
     await client.subscribe([
-            ("work/precache", QOS_0),
-            ("cancel/precache", QOS_1)
+            ("work/#", QOS_0),
+            ("cancel/#", QOS_1)
         ])
 
     if handle_work_server:
