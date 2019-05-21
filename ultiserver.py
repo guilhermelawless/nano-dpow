@@ -84,9 +84,8 @@ class DpowServer(object):
     async def handle_message(self, message):
         print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         try:
-            block_hash = message.topic.split('result/')[1]
-            work = message.data.decode("utf-8")
-            print(block_hash, work)
+            block_hash, work, account = message.data.decode("utf-8").split()
+            print(block_hash, work, account)
         except:
             print("Could not parse message")
             return
@@ -131,9 +130,7 @@ class DpowServer(object):
         if account_exists == 1:
             if display: display.set_decimal(1,True); display.show()
 
-            print("Old account: {}".format(data['account']))
             frontier = await self.redis_getkey(data['account'])
-            print("Account Frontier: {} {}".format(frontier, data['hash']))
             if frontier != data['hash']:
                 print("New Hash, updating")
                 await asyncio.gather(

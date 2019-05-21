@@ -19,12 +19,18 @@ def on_message(client, userdata, msg):
         print('Hash seen: {}'.format(block_hash))
         works[block_hash] = perf_counter()
     elif 'result' in msg.topic:
-        block_hash = msg.topic.split('result/')[1]
+        block_hash, work, account = msg.payload.decode("utf-8")
         if block_hash in works:
-            work = msg.payload.decode("utf-8")
             print('Work seen for hash {} after {}ms'.format(block_hash, int(1000*(perf_counter() - works[block_hash]))))
         else:
             print('Result for {} received before seen'.format(block_hash))
+    elif 'cancel' in msg.topic:
+        block_hash = msg.payload.decode("utf-8")
+        if block_hash in works:
+            print('Work cancel seen for hash {} after {}ms'.format(block_hash, int(1000*(perf_counter() - works[block_hash]))))
+        else:
+            print('Work cancel for {} received before seen'.format(block_hash))
+
 
 
 client = mqtt.Client()

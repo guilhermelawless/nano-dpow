@@ -8,6 +8,7 @@ import work_server
 host = "dangilsystem.zapto.org"
 port = 1883
 handle_work_server = False
+account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
 
 loop = asyncio.get_event_loop()
 
@@ -15,7 +16,7 @@ loop = asyncio.get_event_loop()
 async def dpow_client():
 
     async def send_work(client, block_hash, work):
-        await client.publish(f"result/{block_hash}", str.encode(work, 'utf-8'), qos=QOS_1)
+        await client.publish("result/", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
 
     def handle_work(message):
         try:
