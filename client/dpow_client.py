@@ -16,7 +16,7 @@ loop = asyncio.get_event_loop()
 async def dpow_client():
 
     async def send_work(client, block_hash, work):
-        await client.publish("result/", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
+        await client.publish("result/precache", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
 
     def handle_work(message):
         try:
@@ -77,8 +77,8 @@ async def dpow_client():
     client.config['reconnect_retries'] = 5000
 
     await client.subscribe([
-            ("work/precache/#", QOS_0),
-            ("cancel/#", QOS_1)
+            ("work/precache", QOS_0),
+            ("cancel/precache", QOS_1)
         ])
 
     try:
