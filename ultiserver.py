@@ -50,7 +50,6 @@ class DpowServer(object):
                 "default_qos": 0
             }
         )
-        self.ondemand_wait = 0
         self.mqttc_connect = self.mqttc.connect("mqtt://localhost:1883", cleansession=True)
 
     async def setup(self):
@@ -76,7 +75,10 @@ class DpowServer(object):
 
     async def redis_getkey(self, key: str):
         val = await self.redis_pool.execute('get', key)
-        return val.decode("utf-8")
+        if val == None:
+            return None
+        else:
+            return val.decode("utf-8")
 
     async def redis_exists(self, key: str):
         exists = await self.redis_pool.execute('exists', key)
@@ -100,16 +102,13 @@ class DpowServer(object):
             print("Invalid work")
             return
 
-        if self.ondemand_wait > 0:
-#            asyncio.async(ondemand_queue.put(message.data.decode("utf-8"))) 
-            ondemand_queue.put(message.data.decode("utf-8")) 
-            return
-
         # As we've got work now send cancel command to clients
         # No need to wait on this here
-        asyncio.ensure_future(self.send_mqtt("cancel/precache", block_hash, qos=QOS_1))
+        if message.topic == 'result/precache':
+            asyncio.ensure_future(self.send_mqtt("cancel/precache", block_hash, qos=QOS_1))
+        else:
+            asyncio.ensure_future(self.send_mqtt("cancel/ondemand", block_hash, qos=QOS_1))
 
-        #TODO Return work to service
 
         # Update redis database
         await asyncio.gather(
@@ -137,7 +136,7 @@ class DpowServer(object):
             print("Client exception: {}".format(e))
 
     async def on_demand_publish(self, hash):
-        self.send_mqtt("work/ondemand", hash)
+        await self.send_mqtt("work/ondemand", hash)
 
     async def send_mqtt(self, topic, message, qos=QOS_0):
         await self.mqttc.publish(topic, str.encode(message), qos=qos)
@@ -180,24 +179,34 @@ class DpowServer(object):
         data = await request.json()
         print(data)
         if 'hash' in data and 'address' in data and 'api_key' in data:
+
             #Verify API Key
             service_exists = await self.redis_exists(data['api_key'])
             if service_exists != 1:
                 return web.Response(text="Error, incorrect api key")
-
+            print("Found key")
             #Check if hash in redis db, if so return work
-            hash_exists = await self.redis_exists(data['hash'])
-            if hash_exists == 1:
+            work = await self.redis_getkey(data['hash'])
+            print("Work: {}".format(work))
+            if work != None and work != '0':
                 work = await self.redis_getkey(data['hash'])
-                return web.Response(text=work)
+                work_json = {"work" : work}
+                return web.json_response(work_json)
+
             #If not in db, request on demand work, return it and insert address and hash into redis db
             else:
                 work = await self.on_demand_publish(data['hash'])
-                self.ondemand_wait += 1
-                while 1:
-                    work = await ondemand_queue.get()
-                self.ondemand_wait -= 1
-                return web.Response(text=work)
+
+                print("On Demand - waiting for work...")
+                final_work = '0'
+
+                while final_work == '0' or final_work == None:
+                    final_work = await self.redis_getkey(data['hash'])
+                    await asyncio.sleep(0.5)
+
+                print("Out of loop: {}".format(final_work))
+                work_json = {"work" : final_work}
+                return web.json_response(work_json)
 
             # Log stats
         else:
@@ -213,7 +222,6 @@ async def startup(app):
     print("Server created, looping")
     asyncio.ensure_future(server.heartbeat_loop(), loop=loop)
     asyncio.ensure_future(server.mqtt_loop(), loop=loop)
-    ondemand_queue = asyncio.Queue(loop)
 
 
 async def cleanup(app):
