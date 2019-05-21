@@ -37,6 +37,7 @@ class WorkHandler(object):
             })
             # Unless it was cancelled in the meantime
             if block_hash in self.work_queue:
+                self.work_queue.remove(block_hash)
                 res_js = await res.json()
                 if 'work' in res_js:
                     await self.callback(self.mqtt_client, block_hash, res_js['work'])
