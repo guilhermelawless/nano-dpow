@@ -13,28 +13,15 @@ from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 import nanolib
 
-
-def display_wrapper():
-    try:
-        import fourletterphat
-        obj = fourletterphat
-    except ImportError as e:
-        print(e)
-        obj = None
-    except PermissionError as e:
-        print(e)
-        obj = None
-    return obj
-
-
 # host = "dangilsystem.zapto.org"
-display = display_wrapper()
 redis_server = "redis://localhost"
 loop = asyncio.get_event_loop()
 
 class DpowServer(object):
 
     def __init__(self):
+        self.work_futures = dict()
+
         self.redis_pool = aioredis.create_pool(
             redis_server,
             minsize=5, maxsize=15,
@@ -71,44 +58,18 @@ class DpowServer(object):
 
     async def redis_delete(self, key: str):
         outcome = await self.redis_pool.execute('del', key)
-        print("Delete: {} {}".format(outcome, key))
+        print(f"Delete: {outcome} {key}")
 
     async def redis_getkey(self, key: str):
         val = await self.redis_pool.execute('get', key)
-        return val.decode("utf-8")
+        if val == None:
+            return None
+        else:
+            return val.decode("utf-8")
 
     async def redis_exists(self, key: str):
         exists = await self.redis_pool.execute('exists', key)
-        return exists
-
-    async def handle_message(self, message):
-        print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
-        try:
-            block_hash, work, account = message.data.decode("utf-8").split(',')
-            print(block_hash, work, account)
-        except:
-            print("Could not parse message")
-            return
-
-        #TODO Check if we needed this work, and handle the case where multiple clients return work at the same time
-
-        try:
-            nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
-        except nanolib.InvalidWork:
-            # Invalid work, ignore
-            print("Invalid work")
-            return
-
-        # As we've got work now send cancel command to clients
-        # No need to wait on this here
-        asyncio.ensure_future(self.send_mqtt("cancel/precache", block_hash, qos=QOS_1))
-
-        #TODO Return work to service
-
-        # Update redis database
-        await asyncio.gather(
-            self.redis_insert(block_hash , work)
-        )
+        return exists == 1
 
     @asyncio.coroutine
     async def heartbeat_loop(self):
@@ -125,23 +86,64 @@ class DpowServer(object):
         try:
             while 1:
                 message = await self.mqttc.deliver_message()
-                await self.handle_message(message)
+                await self.mqtt_message_handle(message)
 
         except ClientException as e:
-            print("Client exception: {}".format(e))
-
-    async def on_demand_publish(self, hash):
-        self.send_mqtt("work/ondemand", hash)
+            print(f"Client exception: {e}")
 
     async def send_mqtt(self, topic, message, qos=QOS_0):
         await self.mqttc.publish(topic, str.encode(message), qos=qos)
 
-    async def post_handle(self, request):
+    @asyncio.coroutine
+    async def check_and_insert(self, account, block_hash):
+        account_exists = await self.redis_exists(account)
+        if not account_exists:
+            await self.redis_insert(account, block_hash)
+
+    async def mqtt_message_handle(self, message):
+        contents = message.data.decode("utf-8")
+        print(f"Message: {message.topic}: {contents}")
+        work_type = message.topic.split('/')[-1]
+        if work_type not in ('precache', 'ondemand'):
+            print(f"Wrong topic? {message.topic} -> Extracted work_type {work_type}")
+            return
+
+        try:
+            block_hash, work, account = contents.split(',')
+            print(block_hash, work, account)
+        except:
+            print("Could not parse message")
+            return
+
+        #TODO Check if we needed this work, and handle the case where multiple clients return work at the same time
+
+        try:
+            nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
+        except nanolib.InvalidWork:
+            # Invalid work, ignore
+            print("Invalid work")
+            return
+
+        # Set Future result if in memory
+        if block_hash in self.work_futures:
+            resulting_work = self.work_futures[block_hash]
+            if not resulting_work.done():
+                resulting_work.set_result(work)
+
+        # As we've got work now send cancel command to clients
+        # No need to wait on this here
+        asyncio.ensure_future(self.send_mqtt(f"cancel/{work_type}", block_hash, qos=QOS_1))
+
+        # Update redis database
+        await asyncio.gather(
+            self.redis_insert(block_hash , work)
+        )
+
+    async def block_arrival_handle(self, request):
         data = await request.json()
         account_exists = await self.redis_exists(data['account'])
-        if account_exists == 1:
-            if display: display.set_decimal(1,True); display.show()
 
+        if account_exists:
             frontier = await self.redis_getkey(data['account'])
             if frontier != data['hash']:
                 print("New Hash, updating")
@@ -154,51 +156,62 @@ class DpowServer(object):
             else:
                 print("Duplicate")
 
-            if display: display.set_decimal(1,False); display.show()
-
         else:
-            if display: display.set_decimal(0,True); display.show()
-
-            print("New account: {}".format(data['account']))
+            print(f"New account: {data['account']}")
             await asyncio.gather(
                 self.redis_insert(data['account'], data['hash']),
                 self.redis_insert(data['hash'], "0"),
                 self.send_mqtt("work/precache", data['hash'])
             )
 
-            if display: display.set_decimal(0,False); display.show()
-
         return web.Response(text="test")
 
     async def request_handle(self, request):
         data = await request.json()
         print(data)
-        if 'hash' in data and if 'address' in data and if 'api_key' in data:
+        if 'hash' in data and 'account' in data and 'api_key' in data:
+            block_hash, account, api_key = data['hash'], data['account'], data['api_key']
+
             #Verify API Key
-            service_exists = await self.redis_exists(data['api_key'])
-            if service_exists != 1:
+            service_exists = await self.redis_exists(api_key)
+            if not service_exists:
                 return web.Response(text="Error, incorrect api key")
-
+            print("Found key")
             #Check if hash in redis db, if so return work
-            hash_exists = await self.redis_exists(data['hash'])
-            if hash_exists == 1:
-                work = await self.redis_getkey(data['hash'])
-                return web.Response(text=work)
-            #If not in db, request on demand work, return it and insert address and hash into redis db
-            else:
-                work = await self.on_demand_publish(data['hash'])
-                return web.Response(text=work)
+            work = await self.redis_getkey(block_hash)
+            print(f"Work: {work}")
 
-            # Log stats
+            #If not in db, request on demand work, return it
+            if work is None or work is '0':
+                # Insert account into DB if not yet there
+                asyncio.ensure_future(self.check_and_insert(account, block_hash))
+
+                # Create a Future to be set with work when complete
+                self.work_futures[block_hash] = loop.create_future()
+
+                # Ask for work on demand
+                await self.send_mqtt("work/ondemand", block_hash, qos=QOS_1)
+                print("On Demand - waiting for work...")
+
+                # Wait on the work for some time
+                ON_DEMAND_TIMEOUT = 10
+                try:
+                    work = await asyncio.wait_for(self.work_futures[block_hash], timeout=ON_DEMAND_TIMEOUT)
+                except asyncio.TimeoutError:
+                    print(f"Timeout reached for {block_hash}")
+                    return web.json_response({"error" : "Timeout reached without work"})
+
+            # If this is reached, work was obtained
+            print(f"Work received: {work}")
+            return web.json_response({"work" : work})
+
+            #TODO Log stats
         else:
             return web.Response(text="Error, incorrect submission")
 
 server = DpowServer()
 
 async def startup(app):
-    if display:
-        display.print_str('dPoW')
-        display.show()
     await server.setup()
     print("Server created, looping")
     asyncio.ensure_future(server.heartbeat_loop(), loop=loop)
@@ -210,7 +223,7 @@ async def cleanup(app):
 
 
 app = web.Application()
-app.router.add_post('/', server.post_handle)
+app.router.add_post('/', server.block_arrival_handle)
 app.router.add_post('/service/', server.request_handle)
 app.on_startup.append(startup)
 app.on_cleanup.append(cleanup)
