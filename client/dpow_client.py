@@ -7,7 +7,7 @@ import work_server
 
 host = "dangilsystem.zapto.org"
 port = 1883
-handle_work_server = True
+handle_work_server = False
 
 loop = asyncio.get_event_loop()
 
