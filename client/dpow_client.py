@@ -75,15 +75,6 @@ async def dpow_client():
             }
         )
 
-    if handle_work_server:
-        work_server.create()
-
-    try:
-        work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
-    except Exception as e:
-        print(e)
-        return
-
     try:
         await client.connect(f"mqtt://{host}:{port}", cleansession=True)
     except ConnectException as e:
@@ -100,12 +91,23 @@ async def dpow_client():
         await client.unsubscribe("work/precache/#")
     except asyncio.TimeoutError:
         print("Server is offline :(")
+        await client.disconnect()
         return
 
     await client.subscribe([
             ("work/precache", QOS_0),
             ("cancel/precache", QOS_1)
         ])
+
+    if handle_work_server:
+        work_server.create()
+
+    try:
+        work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
+    except Exception as e:
+        print(e)
+        await client.disconnect()
+        return
 
     try:
         while work_handler_ok:
@@ -122,6 +124,8 @@ async def dpow_client():
 try:
     loop.run_until_complete(dpow_client())
     loop.close()
+except KeyboardInterrupt:
+    pass
 except Exception as e:
     print(e)
 finally:
