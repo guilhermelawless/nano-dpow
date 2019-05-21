@@ -121,6 +121,9 @@ class DpowServer(object):
         except ClientException as e:
             print("Client exception: {}".format(e))
 
+    async def on_demand_publish(self, hash):
+        self.send_mqtt("work/ondemand", hash)
+
     async def send_mqtt(self, topic, message, qos=QOS_0):
         await self.mqttc.publish(topic, str.encode(message), qos=qos)
 
@@ -158,6 +161,28 @@ class DpowServer(object):
 
         return web.Response(text="test")
 
+    async def request_handle(self, request):
+        data = await request.json()
+        print(data)
+        if 'hash' in data and if 'address' in data and if 'api_key' in data:
+            #Verify API Key
+            service_exists = await self.redis_exists(data['api_key'])
+            if service_exists != 1:
+                return web.Response(text="Error, incorrect api key")
+
+            #Check if hash in redis db, if so return work
+            hash_exists = await self.redis_exists(data['hash'])
+            if hash_exists == 1:
+                work = await self.redis_getkey(data['hash'])
+                return web.Response(text=work)
+            #If not in db, request on demand work, return it and insert address and hash into redis db
+            else:
+                work = await self.on_demand_publish(data['hash'])
+                return web.Response(text=work)
+
+            # Log stats
+        else:
+            return web.Response(text="Error, incorrect submission")
 
 server = DpowServer()
 
@@ -176,6 +201,7 @@ async def cleanup(app):
 
 app = web.Application()
 app.router.add_post('/', server.post_handle)
+app.router.add_post('/service/', server.request_handle)
 app.on_startup.append(startup)
 app.on_cleanup.append(cleanup)
 
