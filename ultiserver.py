@@ -110,6 +110,15 @@ class DpowServer(object):
             self.redis_insert(block_hash , work)
         )
 
+    @asyncio.coroutine
+    async def heartbeat_loop(self):
+        try:
+            while 1:
+                await self.send_mqtt("heartbeat", "", qos=QOS_1)
+                await asyncio.sleep(10)
+        except:
+            print("Hearbeat failure")
+            pass
 
     @asyncio.coroutine
     async def mqtt_loop(self):
@@ -167,6 +176,7 @@ async def startup(app):
         display.show()
     await server.setup()
     print("Server created, looping")
+    asyncio.ensure_future(server.heartbeat_loop(), loop=loop)
     asyncio.ensure_future(server.mqtt_loop(), loop=loop)
 
 
