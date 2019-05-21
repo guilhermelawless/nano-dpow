@@ -1,3 +1,4 @@
+from sys import argv
 import asyncio
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -12,11 +13,25 @@ account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
 
 loop = asyncio.get_event_loop()
 
+if len(argv) > 1:
+    handle_work_server = True
+
+
 @asyncio.coroutine
 async def dpow_client():
 
+    work_handler_ok = True
+
     async def send_work(client, block_hash, work):
         await client.publish("result/precache", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
+
+    async def restart_work_server():
+        if handle_work_server:
+            print("Restarting work server...")
+            try:
+                work_server.reload()
+            except:
+                work_handler_ok = False
 
     def handle_work(message):
         try:
@@ -43,7 +58,7 @@ async def dpow_client():
             print(f"Invalid hash {block_hash}")
 
     def handle_message(message):
-        print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
+        # print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         if "cancel" in message.topic:
             handle_cancel(message)
         elif "work" in message.topic:
@@ -64,7 +79,7 @@ async def dpow_client():
         work_server.create()
 
     try:
-        work_handler = WorkHandler('127.0.0.1:7000', client, send_work)
+        work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
     except Exception as e:
         print(e)
         return
@@ -76,13 +91,24 @@ async def dpow_client():
         return
     client.config['reconnect_retries'] = 5000
 
+    # Receive a heartbeat before continuing, this makes sure server is up
+    await client.subscribe([("heartbeat", QOS_1)])
+    try:
+        print("Checking for server availability")
+        await client.deliver_message(timeout=2)
+        print("Server online!")
+        await client.unsubscribe("work/precache/#")
+    except asyncio.TimeoutError:
+        print("Server is offline :(")
+        return
+
     await client.subscribe([
             ("work/precache", QOS_0),
             ("cancel/precache", QOS_1)
         ])
 
     try:
-        while 1:
+        while work_handler_ok:
             message = await client.deliver_message()
             handle_message(message)
     except ClientException as e:
@@ -96,8 +122,8 @@ async def dpow_client():
 try:
     loop.run_until_complete(dpow_client())
     loop.close()
-except:
-    pass
+except Exception as e:
+    print(e)
 finally:
-    if handle_work_server:
+    if handle_work_server and work_server.exists():
         work_server.destroy()

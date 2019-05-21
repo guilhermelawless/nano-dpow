@@ -30,7 +30,8 @@ def on_message(client, userdata, msg):
             print('CANCEL: {} after {}ms'.format(block_hash[0:10]+"...", int(1000*(perf_counter() - works[block_hash]))))
         else:
             print('WARN: CANCEL: {} received before seen'.format(block_hash[0:10]+"..."))
-
+    elif 'heartbeat' in msg.topic:
+        print("HEARTBEAT")
 
 
 client = mqtt.Client()
@@ -44,6 +45,7 @@ client.connect(host, 1883)
 client.subscribe("work/#")
 client.subscribe("result/#")
 client.subscribe("cancel/#")
+client.subscribe("heartbeat")
 print("Subscribed")
 # Blocking call that processes network traffic, dispatches callbacks and
 # handles reconnecting.
