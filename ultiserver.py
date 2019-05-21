@@ -13,22 +13,7 @@ from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 import nanolib
 
-
-def display_wrapper():
-    try:
-        import fourletterphat
-        obj = fourletterphat
-    except ImportError as e:
-        print(e)
-        obj = None
-    except PermissionError as e:
-        print(e)
-        obj = None
-    return obj
-
-
 # host = "dangilsystem.zapto.org"
-display = display_wrapper()
 redis_server = "redis://localhost"
 loop = asyncio.get_event_loop()
 
@@ -144,9 +129,8 @@ class DpowServer(object):
     async def post_handle(self, request):
         data = await request.json()
         account_exists = await self.redis_exists(data['account'])
-        if account_exists == 1:
-            if display: display.set_decimal(1,True); display.show()
 
+        if account_exists == 1:
             frontier = await self.redis_getkey(data['account'])
             if frontier != data['hash']:
                 print("New Hash, updating")
@@ -159,19 +143,13 @@ class DpowServer(object):
             else:
                 print("Duplicate")
 
-            if display: display.set_decimal(1,False); display.show()
-
         else:
-            if display: display.set_decimal(0,True); display.show()
-
             print("New account: {}".format(data['account']))
             await asyncio.gather(
                 self.redis_insert(data['account'], data['hash']),
                 self.redis_insert(data['hash'], "0"),
                 self.send_mqtt("work/precache", data['hash'])
             )
-
-            if display: display.set_decimal(0,False); display.show()
 
         return web.Response(text="test")
 
@@ -215,9 +193,6 @@ class DpowServer(object):
 server = DpowServer()
 
 async def startup(app):
-    if display:
-        display.print_str('dPoW')
-        display.show()
     await server.setup()
     print("Server created, looping")
     asyncio.ensure_future(server.heartbeat_loop(), loop=loop)
