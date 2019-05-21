@@ -84,7 +84,7 @@ class DpowServer(object):
     async def handle_message(self, message):
         print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         try:
-            block_hash, work, account = message.data.decode("utf-8").split()
+            block_hash, work, account = message.data.decode("utf-8").split(',')
             print(block_hash, work, account)
         except:
             print("Could not parse message")
