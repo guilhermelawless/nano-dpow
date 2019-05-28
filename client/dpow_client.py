@@ -6,7 +6,8 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 from work_handler import WorkHandler
 import work_server
 
-host = "dangilsystem.zapto.org"
+host = "localhost"
+#host = "dangilsystem.zapto.org"
 port = 1883
 handle_work_server = False
 account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
@@ -42,6 +43,7 @@ async def dpow_client():
 
         if len(block_hash) == 64:
             asyncio.ensure_future(work_handler.queue_work(block_hash, 'ffffffc000000000'), loop=loop)
+            print(f"Work request for hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
 
@@ -54,6 +56,9 @@ async def dpow_client():
         if len(block_hash) == 64:
             if work_handler.is_queued(block_hash):
                 asyncio.ensure_future(work_handler.queue_cancel(block_hash), loop=loop)
+                print(f"Cancelling hash {block_hash}")
+            else:
+                print(f"Ignoring cancel for work that we did {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
 
@@ -85,7 +90,7 @@ async def dpow_client():
     # Receive a heartbeat before continuing, this makes sure server is up
     await client.subscribe([("heartbeat", QOS_1)])
     try:
-        print("Checking for server availability")
+        print("Checking for server availability...", end=' ', flush=True)
         await client.deliver_message(timeout=2)
         print("Server online!")
         await client.unsubscribe("heartbeat")
@@ -104,9 +109,11 @@ async def dpow_client():
 
     try:
         work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
+        await work_handler.start()
     except Exception as e:
         print(e)
         await client.disconnect()
+        await work_handler.stop()
         return
 
     try:
@@ -120,6 +127,8 @@ async def dpow_client():
     finally:
         await client.unsubscribe("work/precache/#")
         await client.disconnect()
+        await work_handler.stop()
+
 
 try:
     loop.run_until_complete(dpow_client())

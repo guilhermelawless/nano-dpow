@@ -11,11 +11,17 @@ class WorkHandler(object):
         self.error_callback = error_callback
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = set()
+        self.session = None
+
+    async def start(self):
         self.session = aiohttp.ClientSession(json_serialize=json.dumps, conn_timeout=1)
         try:
             requests.post(self.worker_uri, json={"action": "invalid"}, timeout=2).json()['error']
         except requests.exceptions.RequestException:
             raise Exception("Worker not available at {}".format(self.worker_uri))
+
+    async def stop(self):
+        await self.session.close()
 
     def is_queued(self, block_hash: str):
         return block_hash in self.work_queue
