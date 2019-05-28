@@ -228,4 +228,4 @@ app.router.add_post('/service/', server.request_handle)
 app.on_startup.append(startup)
 app.on_cleanup.append(cleanup)
 
-web.run_app(app, port=5030)
+web.run_app(app, host="127.0.0.1", port=5030)
