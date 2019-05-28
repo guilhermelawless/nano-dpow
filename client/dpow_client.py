@@ -110,25 +110,18 @@ async def dpow_client():
     try:
         work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
         await work_handler.start()
-    except Exception as e:
-        print(e)
-        await client.disconnect()
-        await work_handler.stop()
-        return
-
-    try:
         while work_handler_ok:
             message = await client.deliver_message()
             handle_message(message)
     except ClientException as e:
         print("Client exception: {}".format(e))
     except KeyboardInterrupt:
-        pass
-    finally:
         await client.unsubscribe("work/precache/#")
+    except Exception as e:
+        print(e)
+    finally:
         await client.disconnect()
         await work_handler.stop()
-
 
 try:
     loop.run_until_complete(dpow_client())
