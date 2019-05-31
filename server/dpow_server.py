@@ -19,6 +19,7 @@ from mqtt_client import DpowMQTT
 # host = "dangilsystem.zapto.org"
 redis_server = "redis://localhost"
 mqtt_broker = "mqtt://localhost:1883"
+DEBUG_WORK_ALL_BLOCKS = True
 
 
 loop = asyncio.get_event_loop()
@@ -118,12 +119,14 @@ class DpowServer(object):
                 logger.debug(f"Duplicate hash {block_hash}")
 
         else:
-            logger.info(f"New account: {data['account']}")
-            await asyncio.gather(
+            logger.debug(f"New account: {data['account']}")
+            aws = [
                 self.database.insert(account, block_hash),
-                self.database.insert(block_hash, "0"),
-                self.mqtt.send("work/precache", block_hash)
-            )
+                self.database.insert(block_hash, "0")
+            ]
+            if DEBUG_WORK_ALL_BLOCKS:
+                aws.append(self.mqtt.send("work/precache", block_hash))
+            await asyncio.gather(*aws)
 
         return web.Response(text="test")
 
@@ -141,6 +144,7 @@ class DpowServer(object):
                 logger.warn(f"Received request with non existing api key {api_key}")
                 return web.Response(text="Error, incorrect api key")
             logger.info(f"Request for {block_hash}")
+
             #Check if hash in redis db, if so return work
             work = await self.database.get(block_hash)
             logger.info(f"Work in cache: {work}")
