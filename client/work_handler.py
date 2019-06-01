@@ -34,7 +34,7 @@ class WorkHandler(object):
             "hash": block_hash
         })
 
-    async def queue_work(self, block_hash: str, difficulty: str):
+    async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
         try:
             self.work_queue.add(block_hash)
             res = await self.session.post(self.worker_uri, json={
@@ -47,7 +47,7 @@ class WorkHandler(object):
                 self.work_queue.remove(block_hash)
                 res_js = await res.json()
                 if 'work' in res_js:
-                    await self.callback(self.mqtt_client, block_hash, res_js['work'])
+                    await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
                 else:
                     print(res_js['error'])
         except Exception as e:

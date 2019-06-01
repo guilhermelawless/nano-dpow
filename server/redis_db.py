@@ -34,5 +34,18 @@ class DpowRedis(object):
         return exists == 1
 
     async def insert_if_noexist(self, key: str, value: str):
-        existed =  await self.pool.execute('setnx', key, value)
+        existed = await self.pool.execute('setnx', key, value)
         return existed == 1
+
+    async def increment(self, key: str):
+        return await self.pool.execute('incr', key)
+
+    async def hash_increment(self, key: str, field: str, by=1):
+        return await self.pool.execute('hincrby', key, field, by)
+
+    async def hash_getall(self, key: str):
+        arr = await self.pool.execute('hgetall', key)
+        return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
+
+    async def set_add(self, key: str, value: str):
+        return await self.pool.execute('sadd', key, value)

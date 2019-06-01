@@ -6,6 +6,7 @@
 
 import sys
 import time
+import json
 import logging
 import asyncio
 from aiohttp import web
@@ -40,11 +41,14 @@ filehandler.setFormatter(formatter)
 logger.addHandler(filehandler)
 
 
+def work_type_from(precache: bool):
+    return "precache" if precache else "ondemand"
+
+
 class DpowServer(object):
 
     def __init__(self):
         self.work_futures = dict()
-
         self.database = DpowRedis(redis_server, loop)
         self.mqtt = DpowMQTT(mqtt_broker, loop, self.client_cb, logger=logger)
 
@@ -66,14 +70,24 @@ class DpowServer(object):
             self.mqtt.heartbeat_loop()
         )
 
+    async def client_update(self, account: str, work_type: str):
+        # Increment work type
+        await self.database.hash_increment(f"client:{account}", work_type, by=1)
+        # Get all fields for client account
+        stats = await self.database.hash_getall(f"client:{account}")
+        # Send feedback to client
+        await self.mqtt.send(f"client/{account}", json.dumps(stats))
+
     async def client_cb(self, topic, content):
         try:
+            # We expect result/{work_type} as topic
             work_type = topic.split('/')[-1]
             if work_type not in ('precache', 'ondemand'):
                 logger.warn(f"Wrong topic? {topic} -> Extracted work_type {work_type}")
                 return
-            block_hash, work, account = content.split(',')
-            logger.info(f"Message {block_hash} {work} {account}")
+            # Content is expected as CSV block,work,client
+            block_hash, work, client = content.split(',')
+            logger.info(f"Message {block_hash} {work} {client}")
         except Exception as e:
             logger.warn(f"Could not parse message: {e}")
             return
@@ -84,7 +98,7 @@ class DpowServer(object):
             nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
         except nanolib.InvalidWork:
             # Invalid work, ignore
-            logger.debug("Invalid work")
+            logger.debug(f"Invalid work {work} for {block_hash}")
             return
 
         # Set Future result if in memory
@@ -93,36 +107,48 @@ class DpowServer(object):
             if not resulting_work.done():
                 resulting_work.set_result(work)
 
-        # As we've got work now send cancel command to clients
+        # As we've got work now send cancel command to clients and do a stats update
         # No need to wait on this here
-        asyncio.ensure_future(self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1))
+        asyncio.ensure_future(asyncio.gather(
+            self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1),
+            self.database.increment(f"stats:{work_type}"),
+            self.database.set_add(f"clients", client)
+        ))
 
-        # Update redis database
-        await self.database.insert(block_hash , work)
+        # Account information and DB update
+        await asyncio.gather(
+            self.client_update(client, work_type),
+            self.database.insert(f"block:{block_hash}", work)
+        )
 
     async def block_arrival_handle(self, request):
         data = await request.json()
         block_hash, account = data['hash'], data['account']
 
-        account_exists = await self.database.exists(account)
+        account_exists = await self.database.exists(f"account:{account}")
 
         if account_exists:
-            frontier = await self.database.get(account)
+            frontier = await self.database.get(f"account:{account}")
             if frontier != block_hash:
                 await asyncio.gather(
-                    self.database.insert(account, block_hash),
-                    self.database.delete(frontier),
-                    self.database.insert(block_hash , "0"),
-                    self.mqtt.send("work/precache", block_hash)
+                    # Account frontier
+                    self.database.insert(f"account:{account}", block_hash),
+                    # Work for old frontier no longer needed
+                    self.database.delete(f"block:{frontier}"),
+                    # Set incomplete work for new frontier
+                    self.database.insert(f"block:{block_hash}" , "0"),
                 )
+                await self.mqtt.send("work/precache", block_hash)
             else:
                 logger.debug(f"Duplicate hash {block_hash}")
 
         else:
             logger.debug(f"New account: {data['account']}")
             aws = [
-                self.database.insert(account, block_hash),
-                self.database.insert(block_hash, "0")
+                # Account frontier
+                self.database.insert(f"account:{account}", block_hash),
+                # Set incomplete work for new frontier
+                self.database.insert(f"block:{block_hash}", "0")
             ]
             if DEBUG_WORK_ALL_BLOCKS:
                 aws.append(self.mqtt.send("work/precache", block_hash))
@@ -134,25 +160,25 @@ class DpowServer(object):
         data = await request.json()
         logger.info(f"Request:\n{data}")
         if 'hash' in data and 'account' in data and 'api_key' in data:
-            block_hash, account, api_key = data['hash'], data['account'], data['api_key']
+            block_hash, account, service, api_key = data['hash'], data['account'], data['user'], data['api_key']
 
             #TODO secure api key
 
             #Verify API Key
-            service_exists = await self.database.exists(api_key)
-            if not service_exists:
-                logger.warn(f"Received request with non existing api key {api_key}")
+            valid_key = await self.database.get(f"service:{service}") == api_key
+            if not valid_key:
+                logger.warn(f"Received request with non existing api key {api_key} for service {service}")
                 return web.Response(text="Error, incorrect api key")
             logger.info(f"Request for {block_hash}")
 
             #Check if hash in redis db, if so return work
-            work = await self.database.get(block_hash)
+            work = await self.database.get(f"block:{block_hash}")
             logger.info(f"Work in cache: {work}")
 
             #If not in db, request on demand work, return it
             if work is None or work is '0':
                 # Insert account into DB if not yet there
-                asyncio.ensure_future(self.database.insert_if_noexist(account, block_hash))
+                asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
 
                 # Create a Future to be set with work when complete
                 self.work_futures[block_hash] = loop.create_future()
@@ -172,7 +198,7 @@ class DpowServer(object):
             logger.info(f"Work received: {work}")
             return web.json_response({"work" : work})
 
-            #TODO Log stats
+            #TODO Log overall server stats
         else:
             return web.Response(text="Error, incorrect submission")
 

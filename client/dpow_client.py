@@ -1,4 +1,5 @@
 from sys import argv
+import json
 import asyncio
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -23,8 +24,8 @@ async def dpow_client():
 
     work_handler_ok = True
 
-    async def send_work(client, block_hash, work):
-        await client.publish("result/precache", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
+    async def send_work_result(client, work_type, block_hash, work):
+        await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
 
     async def restart_work_server():
         if handle_work_server:
@@ -36,13 +37,15 @@ async def dpow_client():
 
     def handle_work(message):
         try:
+            work_type = message.topic.split('/')[-1]
             block_hash = message.data.decode("utf-8")
-        except:
-            print("Could not parse message")
+        except Exception as e:
+            print(f"Could not parse message: {e}")
+            print(message)
             return
 
         if len(block_hash) == 64:
-            asyncio.ensure_future(work_handler.queue_work(block_hash, 'ffffffc000000000'), loop=loop)
+            asyncio.ensure_future(work_handler.queue_work(work_type, block_hash, 'ffffffc000000000'), loop=loop)
             print(f"Work request for hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
@@ -62,23 +65,32 @@ async def dpow_client():
         else:
             print(f"Invalid hash {block_hash}")
 
+    def handle_stats(message):
+        try:
+            print("Stats", json.loads(message.data))
+        except Exception as e:
+            print(f"Could not parse stats: {e}")
+            print(message.data)
+
     def handle_message(message):
         # print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         if "cancel" in message.topic:
             handle_cancel(message)
         elif "work" in message.topic:
             handle_work(message)
+        elif "client" in message.topic:
+            handle_stats(message)
 
 
     client = MQTTClient(
-            loop=loop,
-            config={
-                "auto_reconnect": True,
-                "reconnect_retries": 3,
-                "reconnect_max_interval": 60,
-                "default_qos": 0
-            }
-        )
+        loop=loop,
+        config={
+            "auto_reconnect": True,
+            "reconnect_retries": 3,
+            "reconnect_max_interval": 60,
+            "default_qos": 0
+        }
+    )
 
     try:
         await client.connect(f"mqtt://{host}:{port}", cleansession=True)
@@ -100,15 +112,16 @@ async def dpow_client():
         return
 
     await client.subscribe([
-            ("work/#", QOS_0),
-            ("cancel/#", QOS_1)
-        ])
+        ("work/#", QOS_0),
+        ("cancel/#", QOS_1),
+        (f"client/{account}", QOS_0)
+    ])
 
     if handle_work_server:
         work_server.create()
 
     try:
-        work_handler = WorkHandler('127.0.0.1:7000', client, send_work, restart_work_server)
+        work_handler = WorkHandler('127.0.0.1:7000', client, send_work_result, restart_work_server)
         await work_handler.start()
         while work_handler_ok:
             message = await client.deliver_message()
@@ -116,7 +129,7 @@ async def dpow_client():
     except ClientException as e:
         print("Client exception: {}".format(e))
     except KeyboardInterrupt:
-        await client.unsubscribe("work/precache/#")
+        pass
     except Exception as e:
         print(e)
     finally:
