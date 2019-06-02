@@ -47,5 +47,8 @@ class DpowRedis(object):
         arr = await self.pool.execute('hgetall', key)
         return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
 
+    async def hash_get(self, key:str, field: str):
+        return await self.pool.execute('hget', key, field)
+
     async def set_add(self, key: str, value: str):
         return await self.pool.execute('sadd', key, value)

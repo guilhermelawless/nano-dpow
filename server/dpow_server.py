@@ -7,6 +7,7 @@
 import sys
 import time
 import json
+import hashlib
 import logging
 import asyncio
 from aiohttp import web
@@ -39,6 +40,12 @@ filehandler = logging.FileHandler("log.txt", 'a', 'utf-8')
 filehandler.setLevel(logging.DEBUG)
 filehandler.setFormatter(formatter)
 logger.addHandler(filehandler)
+
+
+def hash_key(x: str):
+    m = hashlib.blake2b()
+    m.update(x.encode("utf-8"))
+    return m.digest()
 
 
 def work_type_from(precache: bool):
@@ -161,11 +168,10 @@ class DpowServer(object):
         logger.info(f"Request:\n{data}")
         if 'hash' in data and 'account' in data and 'api_key' in data:
             block_hash, account, service, api_key = data['hash'], data['account'], data['user'], data['api_key']
-
-            #TODO secure api key
+            api_key = hash_key(api_key)
 
             #Verify API Key
-            valid_key = await self.database.get(f"service:{service}") == api_key
+            valid_key = await self.database.hash_get(f"service:{service}", "api_key") == api_key
             if not valid_key:
                 logger.warn(f"Received request with non existing api key {api_key} for service {service}")
                 return web.Response(text="Error, incorrect api key")
