@@ -1,6 +1,7 @@
 from sys import argv
 import json
 import asyncio
+from time import time
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
@@ -18,6 +19,17 @@ loop = asyncio.get_event_loop()
 if len(argv) > 1:
     handle_work_server = True
 
+time_last_heartbeat = time()
+
+@asyncio.coroutine
+async def heartbeat_loop():
+    while 1:
+        try:
+            await asyncio.sleep(10)
+            if time () - time_last_heartbeat > 10:
+                print(f"Server appears to be offline... {int(time () - time_last_heartbeat)} seconds since last message")
+        except Exception as e:
+            print(f"Hearbeat check failure: {e}")
 
 @asyncio.coroutine
 async def dpow_client():
@@ -72,6 +84,9 @@ async def dpow_client():
             print(f"Could not parse stats: {e}")
             print(message.data)
 
+    def handle_heartbeat(message):
+        time_last_heartbeat = time()
+
     def handle_message(message):
         # print("Message: {}: {}".format(message.topic, message.data.decode("utf-8")))
         if "cancel" in message.topic:
@@ -80,6 +95,8 @@ async def dpow_client():
             handle_work(message)
         elif "client" in message.topic:
             handle_stats(message)
+        elif "heartbeat" == message.topic:
+            handle_heartbeat(message)
 
 
     client = MQTTClient(
@@ -105,7 +122,7 @@ async def dpow_client():
         print("Checking for server availability...", end=' ', flush=True)
         await client.deliver_message(timeout=2)
         print("Server online!")
-        await client.unsubscribe("heartbeat")
+        time_last_heartbeat = time()
     except asyncio.TimeoutError:
         print("Server is offline :(")
         await client.disconnect()
@@ -126,6 +143,7 @@ async def dpow_client():
         while work_handler_ok:
             message = await client.deliver_message()
             handle_message(message)
+
     except ClientException as e:
         print("Client exception: {}".format(e))
     except KeyboardInterrupt:
@@ -137,7 +155,7 @@ async def dpow_client():
         await work_handler.stop()
 
 try:
-    loop.run_until_complete(dpow_client())
+    loop.run_until_complete(asyncio.gather(dpow_client(), heartbeat_loop()))
     loop.close()
 except KeyboardInterrupt:
     pass
