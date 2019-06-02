@@ -6,18 +6,13 @@ from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 from work_handler import WorkHandler
-import work_server
 
 host = "localhost"
 #host = "dangilsystem.zapto.org"
 port = 1883
-handle_work_server = False
 account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
 
 loop = asyncio.get_event_loop()
-
-if len(argv) > 1:
-    handle_work_server = True
 
 time_last_heartbeat = time()
 
@@ -39,13 +34,8 @@ async def dpow_client():
     async def send_work_result(client, work_type, block_hash, work):
         await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
 
-    async def restart_work_server():
-        if handle_work_server:
-            print("Restarting work server...")
-            try:
-                work_server.reload()
-            except:
-                work_handler_ok = False
+    async def work_server_error_callback():
+        pass
 
     def handle_work(message):
         try:
@@ -134,11 +124,9 @@ async def dpow_client():
         (f"client/{account}", QOS_0)
     ])
 
-    if handle_work_server:
-        work_server.create()
-
+    # Main
     try:
-        work_handler = WorkHandler('127.0.0.1:7000', client, send_work_result, restart_work_server)
+        work_handler = WorkHandler('127.0.0.1:7000', client, send_work_result, work_server_error_callback)
         await work_handler.start()
         while work_handler_ok:
             message = await client.deliver_message()
@@ -161,6 +149,3 @@ except KeyboardInterrupt:
     pass
 except Exception as e:
     print(e)
-finally:
-    if handle_work_server and work_server.exists():
-        work_server.destroy()
