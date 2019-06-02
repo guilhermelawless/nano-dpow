@@ -14,6 +14,7 @@ account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
 
 loop = asyncio.get_event_loop()
 
+global time_last_heartbeat
 time_last_heartbeat = time()
 
 @asyncio.coroutine
@@ -21,6 +22,7 @@ async def heartbeat_loop():
     while 1:
         try:
             await asyncio.sleep(10)
+            global time_last_heartbeat
             if time () - time_last_heartbeat > 10:
                 print(f"Server appears to be offline... {int(time () - time_last_heartbeat)} seconds since last message")
         except Exception as e:
@@ -75,6 +77,7 @@ async def dpow_client():
             print(message.data)
 
     def handle_heartbeat(message):
+        global time_last_heartbeat
         time_last_heartbeat = time()
 
     def handle_message(message):
