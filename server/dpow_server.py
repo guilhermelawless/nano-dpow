@@ -1,45 +1,21 @@
 #!/usr/bin/env python3
-
-# Definitions
-#    client - pow calculators, they subscribe to a particular work topic and process the hashes, returning work
-#    service - system that uses dpow for calculating pow, access is via POST
-
-import sys
-import time
 import json
 import hashlib
-import logging
 import asyncio
 from aiohttp import web
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
+
 import nanolib
 
 from redis_db import DpowRedis
 from mqtt_client import DpowMQTT
-
-# CONFIG
-# host = "dangilsystem.zapto.org"
-redis_server = "redis://localhost"
-mqtt_broker = "mqtt://localhost:1883"
-DEBUG_WORK_ALL_BLOCKS = True
+import dpow_logger
+from config_parse import DpowConfig
 
 
 loop = asyncio.get_event_loop()
-
-# Logging
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s@%(funcName)s:%(lineno)s - %(message)s')
-logger = logging.getLogger("dpow")
-logger.setLevel(logging.DEBUG)
-
-handler = logging.StreamHandler(sys.stderr)
-handler.setLevel(logging.WARN)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-filehandler = logging.FileHandler("log.txt", 'a', 'utf-8')
-filehandler.setLevel(logging.DEBUG)
-filehandler.setFormatter(formatter)
-logger.addHandler(filehandler)
+config = DpowConfig()
+logger = dpow_logger.get_logger()
 
 
 def hash_key(x: str):
@@ -48,16 +24,12 @@ def hash_key(x: str):
     return m.digest()
 
 
-def work_type_from(precache: bool):
-    return "precache" if precache else "ondemand"
-
-
 class DpowServer(object):
 
     def __init__(self):
         self.work_futures = dict()
-        self.database = DpowRedis(redis_server, loop)
-        self.mqtt = DpowMQTT(mqtt_broker, loop, self.client_cb, logger=logger)
+        self.database = DpowRedis(config.redis_uri, loop)
+        self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_cb, logger=logger)
 
     async def setup(self):
         await asyncio.gather(
@@ -157,7 +129,7 @@ class DpowServer(object):
                 # Set incomplete work for new frontier
                 self.database.insert(f"block:{block_hash}", "0")
             ]
-            if DEBUG_WORK_ALL_BLOCKS:
+            if config.debug:
                 aws.append(self.mqtt.send("work/precache", block_hash))
             await asyncio.gather(*aws)
 
@@ -208,21 +180,27 @@ class DpowServer(object):
         else:
             return web.Response(text="Error, incorrect submission")
 
-server = DpowServer()
 
-async def startup(app):
-    logger.info("Server starting")
-    await server.setup()
-    asyncio.ensure_future(server.loop(), loop=loop)
+def main():
+    server = DpowServer()
 
-async def cleanup(app):
-    logger.info("Server shutting down")
-    await server.close()
+    async def startup(app):
+        logger.info("Server starting")
+        await server.setup()
+        asyncio.ensure_future(server.loop(), loop=loop)
 
-app = web.Application()
-app.router.add_post('/', server.block_arrival_handle)
-app.router.add_post('/service/', server.request_handle)
-app.on_startup.append(startup)
-app.on_cleanup.append(cleanup)
+    async def cleanup(app):
+        logger.info("Server shutting down")
+        await server.close()
 
-web.run_app(app, host="127.0.0.1", port=5030)
+    app = web.Application()
+    app.router.add_post('/', server.block_arrival_handle)
+    app.router.add_post('/service/', server.request_handle)
+    app.on_startup.append(startup)
+    app.on_cleanup.append(cleanup)
+
+    web.run_app(app, host=config.web_host, port=config.web_port)
+
+
+if __name__ == "__main__":
+    main()
