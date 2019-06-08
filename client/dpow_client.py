@@ -108,7 +108,6 @@ class DpowClient(object):
             self.time_last_heartbeat = time()
         except asyncio.TimeoutError:
             print("Server is offline :(")
-            await self.client.disconnect()
             return False
         self.server_online = True
         await self.client.subscribe([
@@ -116,14 +115,20 @@ class DpowClient(object):
             ("cancel/#", QOS_1),
             (f"client/{account}", QOS_0)
         ])
-        await self.work_handler.start()
+        try:
+            await self.work_handler.start()
+        except Exception as e:
+            print(e)
+            return False
         self.running = True
         return True
 
     async def close(self):
         self.running = False
-        await self.client.disconnect()
-        await self.work_handler.stop()
+        if self.client:
+            await self.client.disconnect()
+        if self.work_handler:
+            await self.work_handler.stop()
 
     @asyncio.coroutine
     async def run(self):

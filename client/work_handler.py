@@ -21,7 +21,8 @@ class WorkHandler(object):
             raise Exception("Worker not available at {}".format(self.worker_uri))
 
     async def stop(self):
-        await self.session.close()
+        if self.session:
+            await self.session.close()
 
     def is_queued(self, block_hash: str):
         return block_hash in self.work_queue

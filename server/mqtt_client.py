@@ -60,6 +60,6 @@ class DpowMQTT(object):
         try:
             while 1:
                 await self.send("heartbeat", "", qos=QOS_1)
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
         except Exception as e:
             self.logger.error(f"Hearbeat failure: {e}")
