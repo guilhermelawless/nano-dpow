@@ -2,3 +2,4 @@ hbmqtt
 aiohttp
 aioredis
 nanolib
+websockets

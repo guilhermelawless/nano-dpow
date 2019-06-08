@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from config_parse import DpowConfig
+config = DpowConfig() # takes a while to --help if this goes after imports
+
 import json
 import hashlib
 import asyncio
@@ -6,11 +9,10 @@ from aiohttp import web
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 import nanolib
-
 from redis_db import DpowRedis
 from mqtt_client import DpowMQTT
+from websocket_client import WebsocketClient
 import dpow_logger
-from config_parse import DpowConfig
 
 
 loop = asyncio.get_event_loop()
@@ -29,12 +31,14 @@ class DpowServer(object):
     def __init__(self):
         self.work_futures = dict()
         self.database = DpowRedis(config.redis_uri, loop)
-        self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_cb, logger=logger)
+        self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_callback_handle, logger=logger)
+        if config.use_websocket:
+            self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_websocket_handle)
 
     async def setup(self):
         await asyncio.gather(
             self.database.setup(),
-            self.mqtt.setup()
+            self.mqtt.setup(),
         )
 
     async def close(self):
@@ -44,10 +48,13 @@ class DpowServer(object):
         )
 
     async def loop(self):
-        await asyncio.gather(
+        aws = [
             self.mqtt.message_receive_loop(),
-            self.mqtt.heartbeat_loop()
-        )
+            self.mqtt.heartbeat_loop(),
+        ]
+        if self.websocket:
+            aws.append(self.websocket.loop())
+        await asyncio.gather(*aws)
 
     async def client_update(self, account: str, work_type: str):
         # Increment work type
@@ -57,7 +64,7 @@ class DpowServer(object):
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", json.dumps(stats))
 
-    async def client_cb(self, topic, content):
+    async def client_callback_handle(self, topic, content):
         try:
             # We expect result/{work_type} as topic
             work_type = topic.split('/')[-1]
@@ -100,10 +107,7 @@ class DpowServer(object):
             self.database.insert(f"block:{block_hash}", work)
         )
 
-    async def block_arrival_handle(self, request):
-        data = await request.json()
-        block_hash, account = data['hash'], data['account']
-
+    async def block_arrival_handle(self, block_hash, account):
         account_exists = await self.database.exists(f"account:{account}")
 
         if account_exists:
@@ -122,7 +126,7 @@ class DpowServer(object):
                 logger.debug(f"Duplicate hash {block_hash}")
 
         else:
-            logger.debug(f"New account: {data['account']}")
+            logger.debug(f"New account: {account}")
             aws = [
                 # Account frontier
                 self.database.insert(f"account:{account}", block_hash),
@@ -133,7 +137,15 @@ class DpowServer(object):
                 aws.append(self.mqtt.send("work/precache", block_hash))
             await asyncio.gather(*aws)
 
-        return web.Response(text="test")
+    async def block_arrival_websocket_handle(self, data):
+        block_hash, account = data['hash'], data['account']
+        await self.block_arrival_handle(block_hash, account)
+
+    async def block_arrival_callback_handle(self, request):
+        data = await request.json()
+        block_hash, account = data['hash'], data['account']
+        await self.block_arrival_handle(block_hash, account)
+        return web.Response(text="")
 
     async def request_handle(self, request):
         data = await request.json()
@@ -194,7 +206,8 @@ def main():
         await server.close()
 
     app = web.Application()
-    app.router.add_post('/', server.block_arrival_handle)
+    if not config.use_websocket:
+        app.router.add_post('/', server.block_arrival_handle)
     app.router.add_post('/service/', server.request_handle)
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)
