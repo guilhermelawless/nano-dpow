@@ -27,6 +27,7 @@ def hash_key(x: str):
 
 
 class DpowServer(object):
+    WORK_PENDING = "0"
 
     def __init__(self):
         self.work_futures = dict()
@@ -80,13 +81,22 @@ class DpowServer(object):
             logger.warn(f"Could not parse message: {e}")
             return
 
-        #TODO Check if we needed this work, and handle the case where multiple clients return work at the same time
+        # Check if work is needed
+        # - Block is removed from DB once account frontier that contained it is updated
+        # - Block corresponding value is WORK_PENDING if work is pending
+        available = await self.database.get(f"block:{block_hash}")
+        if not available:
+            logger.debug(f"Client {client} provided work for a removed or non-existing hash {block_hash}")
+            return
+        elif available != DpowServer.WORK_PENDING:
+            logger.debug(f"Client {client} provided work for hash {block_hash} with existing work {available}")
+            return
 
         try:
             nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
         except nanolib.InvalidWork:
             # Invalid work, ignore
-            logger.debug(f"Invalid work {work} for {block_hash}")
+            logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
 
         # Set Future result if in memory
@@ -95,6 +105,12 @@ class DpowServer(object):
             if not resulting_work.done():
                 resulting_work.set_result(work)
 
+        # Account information and DB update
+        await asyncio.gather(
+            self.client_update(client, work_type),
+            self.database.insert(f"block:{block_hash}", work)
+        )
+
         # As we've got work now send cancel command to clients and do a stats update
         # No need to wait on this here
         asyncio.ensure_future(asyncio.gather(
@@ -102,12 +118,6 @@ class DpowServer(object):
             self.database.increment(f"stats:{work_type}"),
             self.database.set_add(f"clients", client)
         ))
-
-        # Account information and DB update
-        await asyncio.gather(
-            self.client_update(client, work_type),
-            self.database.insert(f"block:{block_hash}", work)
-        )
 
     async def block_arrival_handle(self, block_hash, account):
         account_exists = await self.database.exists(f"account:{account}")
@@ -121,7 +131,7 @@ class DpowServer(object):
                     # Work for old frontier no longer needed
                     self.database.delete(f"block:{frontier}"),
                     # Set incomplete work for new frontier
-                    self.database.insert(f"block:{block_hash}" , "0"),
+                    self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
                 )
                 await self.mqtt.send("work/precache", block_hash)
             else:
@@ -133,7 +143,7 @@ class DpowServer(object):
                 # Account frontier
                 self.database.insert(f"account:{account}", block_hash),
                 # Set incomplete work for new frontier
-                self.database.insert(f"block:{block_hash}", "0")
+                self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
             ]
             if config.debug:
                 aws.append(self.mqtt.send("work/precache", block_hash))
@@ -167,8 +177,16 @@ class DpowServer(object):
             work = await self.database.get(f"block:{block_hash}")
             logger.info(f"Work in cache: {work}")
 
-            #If not in db, request on demand work, return it
-            if work is None or work is '0':
+            if work is None:
+                await asyncio.gather(
+                    # Account frontier
+                    self.database.insert(f"account:{account}", block_hash),
+                    # Set incomplete work for new frontier
+                    self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
+                )
+
+            #Request on demand work, return it
+            if work is None or work == DpowServer.WORK_PENDING:
                 # Insert account into DB if not yet there
                 asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
 
