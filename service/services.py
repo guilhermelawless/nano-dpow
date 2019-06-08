@@ -13,9 +13,14 @@ group.add_argument('--add', action='store_true', help='Adds a service')
 group.add_argument('--check', action='store_true', help='Retrieve and print service details')
 group.add_argument('--delete', action='store_true', help='Delete a service entry')
 group.add_argument('--update', action='store_true', help='Update a service entry')
-parser.add_argument('service', type=str, help='Service username')
+group.add_argument('--list', action='store_true', help='List all users')
+parser.add_argument('service', nargs='?', default=None, type=str, help='Service username')
 
 args = parser.parse_args()
+if not args.service and not args.list:
+	from sys import exit
+	parser.print_help()
+	exit(1)
 
 
 def hash_key(x: str):
@@ -69,7 +74,7 @@ def display(user):
 
 
 def add(user):
-	print("Creating new entry. Leave a field blank to skip")	
+	print("Creating new entry. Leave a field blank to skip")
 	options = interactive(True)
 	r.hmset(f"service:{user}", options)
 	r.sadd("services", user)
@@ -78,11 +83,11 @@ def add(user):
 
 
 def update(user):
-	print("Updating entry. Leave a field blank to skip")	
+	print("Updating entry. Leave a field blank to skip")
 	options = interactive(False)
 	r.hmset(f"service:{user}", options)
 	print(f"User {user} updated:")
-	display(user)	
+	display(user)
 
 
 def delete(user):
@@ -97,23 +102,26 @@ def delete(user):
 
 
 def main():
-	user = args.service
-	user_exists = exists(user)
-
-	if not user_exists:
-		if args.add:
-			add(user)
-		else:
-			print("Services in database:\n", existing_users())
+	if args.list:
+		print("Services in database:\n", existing_users())
 	else:
-		if args.check:
-			display(user)
-		elif args.delete:
-			delete(user)
-		elif args.update:
-			update(user)
+		user = args.service
+		user_exists = exists(user)
+
+		if not user_exists:
+			if args.add:
+				add(user)
+			else:
+				print("Services in database:\n", existing_users())
 		else:
-			NotImplementedError
+			if args.check:
+				display(user)
+			elif args.delete:
+				delete(user)
+			elif args.update:
+				update(user)
+			else:
+				NotImplementedError
 
 if __name__ == '__main__':
 	main()
