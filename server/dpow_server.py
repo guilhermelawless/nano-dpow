@@ -34,6 +34,8 @@ class DpowServer(object):
         self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_callback_handle, logger=logger)
         if config.use_websocket:
             self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_websocket_handle)
+        else:
+            self.websocket = None
 
     async def setup(self):
         await asyncio.gather(
@@ -207,7 +209,7 @@ def main():
 
     app = web.Application()
     if not config.use_websocket:
-        app.router.add_post('/', server.block_arrival_handle)
+        app.router.add_post('/', server.block_arrival_callback_handle)
     app.router.add_post('/service/', server.request_handle)
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)
