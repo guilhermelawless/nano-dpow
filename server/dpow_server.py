@@ -2,6 +2,7 @@
 from config_parse import DpowConfig
 config = DpowConfig() # takes a while to --help if this goes after imports
 
+import sys
 import json
 import hashlib
 import asyncio
@@ -257,7 +258,12 @@ def main():
 
     async def startup(app):
         logger.info("Server starting")
-        await server.setup()
+        try:
+            await server.setup()
+        except Exception as e:
+            logger.critical(e)
+            sys.exit(1)
+
         asyncio.ensure_future(server.loop(), loop=loop)
 
     async def cleanup(app):

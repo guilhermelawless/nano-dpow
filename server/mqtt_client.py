@@ -23,13 +23,10 @@ class DpowMQTT(object):
         self.callback = message_handle_cb
 
     async def setup(self):
-        try:
-            await self.connect_wait
-            await self.connection.subscribe([
-                ("result/#", QOS_1)
-            ])
-        except Exception as e:
-            self.logger.critical(f"Error in MQTT setup: {e}")
+        await self.connect_wait
+        await self.connection.subscribe([
+            ("result/#", QOS_1)
+        ])
 
     async def close(self):
         await self.connection.disconnect()
