@@ -168,9 +168,13 @@ class DpowServer(object):
         await self.block_arrival_handle(block_hash, account)
 
     async def block_arrival_callback_handle(self, request):
-        data = await request.json()
-        block_hash, account = data['hash'], data['account']
-        await self.block_arrival_handle(block_hash, account)
+        peername = request.transport.get_extra_info('peername')
+        if peername is not None:
+            host, port = peername
+            if host == config.callback_remote_ip:
+                data = await request.json()
+                block_hash, account = data['hash'], data['account']
+                await self.block_arrival_handle(block_hash, account)
         return web.Response()
 
     async def request_handle(self, request):
