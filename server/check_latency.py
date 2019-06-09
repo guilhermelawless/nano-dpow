@@ -15,7 +15,7 @@ def on_connect(client, userdata, rc):
 def on_message(client, userdata, msg):
     contents = msg.payload.decode("utf-8")
     if 'work' in msg.topic:
-        block_hash = contents
+        block_hash, difficulty = contents.split(',')
         print('WORK: {}'.format(block_hash[0:10]+"..."))
         works[block_hash] = perf_counter()
     elif 'result' in msg.topic:
