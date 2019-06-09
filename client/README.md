@@ -11,12 +11,16 @@ These steps will guide you on how to setup a new work client. The nano-work-serv
 ### Installation
 
 ```bash
+git clone https://github.com/guilhermelawless/nano-dpow.git
+cd nano-dpow/client
 pip3 install --user -r requirements.txt
 ```
 
 ## Running
 
 ### Work Server
+
+You need to find out what your GPU vendor/device numbers are if you're going to be using a GPU.
 
 #### Linux
 
@@ -28,7 +32,9 @@ Check `./bin/linux/nano-work-server --help` for information on how to select you
 
 #### Windows (experimental)
 
-Edit the properties of the file `run_work_server.lnk` inside `bin\windows` to run `bin\windows\nano-work-server.exe` with the desired options when clicked. Run it, should leave a terminal window running in the foreground.
+Navigate to `bin\windows` on your file explorer and double-click the file `run_work_server.bat`, it should leave a terminal window running in the foreground, which you can minimize but not close (sorry!). Edit the file to change the GPU that will be used.
+
+Alternatively you can run `bin\windows\nano-work-server.exe` with the usual options (see above in the instructions for Linux).
 
 ### DPoW Client
 
