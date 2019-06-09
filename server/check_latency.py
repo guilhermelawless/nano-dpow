@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import json
 from time import perf_counter
 
+host = "139.59.134.66"
 works = dict()
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -40,8 +41,7 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-host = "localhost"
-
+client.username_pw_set('client', password='client')
 client.connect(host, 1883)
 
 client.subscribe("work/#")
