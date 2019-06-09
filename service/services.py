@@ -61,7 +61,9 @@ def interactive(force):
 		"public": public,
 		"display": display,
 		"website": website,
-		"api_key": api_key
+		"api_key": api_key,
+		"precache": 0,
+		"ondemand": 0
 	}
 	return options
 

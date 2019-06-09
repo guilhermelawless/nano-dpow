@@ -13,7 +13,7 @@ except IndexError:
 else:
     hash = (uuid.uuid4().hex + uuid.uuid4().hex).upper()
     start_time = time.time()
-    json_request = {"hash" : hash, "account": "nano_1dpowservicetest", "user": user, "api_key" : key}
+    json_request = {"hash" : hash, "account": "xrb_1dpowseruicetest111111111111111111111111111111111111ptmcz6f9", "user": user, "api_key" : key, 'timeout': 1}
     print(json_request)
     r = requests.post('http://127.0.0.1:5030/service/', json = json_request)
     complete_time = time.time()

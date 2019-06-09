@@ -32,23 +32,22 @@ def on_message(client, userdata, msg):
             print('WARN: CANCEL: {} received before seen'.format(block_hash[0:10]+"..."))
     elif 'heartbeat' in msg.topic:
         print("HEARTBEAT")
+    elif 'statistics' in msg.topic:
+        print("Statistics update:\n\n{}".format(contents))
 
 
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-host = "dangilsystem.zapto.org"
+host = "localhost"
 
 client.connect(host, 1883)
 
 client.subscribe("work/#")
 client.subscribe("result/#")
 client.subscribe("cancel/#")
+client.subscribe("statistics")
 client.subscribe("heartbeat")
 print("Subscribed")
-# Blocking call that processes network traffic, dispatches callbacks and
-# handles reconnecting.
-# Other loop*() functions are available that give a threaded interface and a
-# manual interface.
 client.loop_forever()

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from config_parse import DpowClientConfig
+config = DpowClientConfig()
 
 from sys import argv
 import json
@@ -9,21 +11,16 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 from work_handler import WorkHandler
 
-host = "localhost"
-#host = "dangilsystem.zapto.org"
-port = 1883
-account = "nano_1dpowtestdpowtest11111111111111111111111111111111111icw1jiw5"
-
-
 loop = asyncio.get_event_loop()
 
 
 async def send_work_result(client, work_type, block_hash, work):
-    await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{account}", 'utf-8'), qos=QOS_1)
+    await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_1)
 
 
 async def work_server_error_callback():
     pass
+
 
 class DpowClient(object):
 
@@ -37,21 +34,22 @@ class DpowClient(object):
                 "default_qos": 0
             }
         )
-        self.work_handler = WorkHandler('127.0.0.1:7000', self.client, send_work_result, work_server_error_callback)
+        self.work_handler = WorkHandler(config.worker, self.client, send_work_result, work_server_error_callback)
         self.running = False
         self.server_online = False
 
     def handle_work(self, message):
         try:
             work_type = message.topic.split('/')[-1]
-            block_hash = message.data.decode("utf-8")
+            content = message.data.decode("utf-8")
+            block_hash, difficulty = content.split(',')
         except Exception as e:
             print(f"Could not parse message: {e}")
             print(message)
             return
 
         if len(block_hash) == 64:
-            asyncio.ensure_future(self.work_handler.queue_work(work_type, block_hash, 'ffffffc000000000'), loop=loop)
+            asyncio.ensure_future(self.work_handler.queue_work(work_type, block_hash, difficulty), loop=loop)
             print(f"Work request for hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
@@ -94,7 +92,7 @@ class DpowClient(object):
 
     async def setup(self):
         try:
-            await self.client.connect(f"mqtt://{host}:{port}", cleansession=True)
+            await self.client.connect(config.server, cleansession=True)
         except ConnectException as e:
             print("Connection exception: {}".format(e))
             return False
@@ -110,10 +108,16 @@ class DpowClient(object):
             print("Server is offline :(")
             return False
         self.server_online = True
+
+        if config.work_type == "any":
+            desired_work = "#"
+        else:
+            desired_work = config.work_type # precache or ondemand
+
         await self.client.subscribe([
-            ("work/#", QOS_0),
-            ("cancel/#", QOS_1),
-            (f"client/{account}", QOS_0)
+            (f"work/{desired_work}", QOS_0),
+            (f"cancel/{desired_work}", QOS_1),
+            (f"client/{config.payout}", QOS_0)
         ])
         try:
             await self.work_handler.start()

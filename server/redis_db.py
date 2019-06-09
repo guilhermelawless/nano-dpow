@@ -3,6 +3,8 @@
 import asyncio
 import aioredis
 
+SERVICE_PUBLIC = "Y"
+
 class DpowRedis(object):
 
     def __init__(self, server, loop):
@@ -18,6 +20,31 @@ class DpowRedis(object):
     async def close(self):
         self.pool.close()
         await self.pool.wait_closed()
+
+    async def all_statistics(self):
+        precache = await self.get("stats:precache")
+        on_demand = await self.get("stats:ondemand")
+
+        public_services = list()
+        private_services = 0
+        services = await self.set_members("services")
+        for service in services:
+            info = await self.hash_getmany(f"service:{service}", "public", "display", "website", "precache", "ondemand")
+            if info["public"] == SERVICE_PUBLIC:
+                del info["public"]
+                public_services.append(info)
+            else:
+                private_services += 1
+        return dict(
+            services = {
+                "public": public_services,
+                "private": private_services
+            },
+            work = {
+                "precache": precache,
+                "ondemand": on_demand
+            }
+        )
 
     async def insert(self, key: str, value: str):
         return await self.pool.execute('set', key, value )
@@ -47,8 +74,16 @@ class DpowRedis(object):
         arr = await self.pool.execute('hgetall', key)
         return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
 
-    async def hash_get(self, key:str, field: str):
+    async def hash_getmany(self, key:str, *fields, decode=True):
+        arr = await self.pool.execute('hmget', key, *fields)
+        return {fields[i]: arr[i].decode("utf-8") for i in range(len(arr))}
+
+    async def hash_get(self, key: str, field: str):
         return await self.pool.execute('hget', key, field)
 
     async def set_add(self, key: str, value: str):
         return await self.pool.execute('sadd', key, value)
+
+    async def set_members(self, key: str):
+        members = await self.pool.execute('smembers', key)
+        return {member.decode("utf-8") for member in members}
