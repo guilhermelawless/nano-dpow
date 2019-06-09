@@ -72,6 +72,9 @@ class DpowServer(object):
                 await self.mqtt.send("statistics", json.dumps(stats))
                 await asyncio.sleep(300)
         except Exception as e:
+            if not e.args:
+                logger.debug("Empty exception on statistics loop, returned silently")
+                return
             logger.error(f"Statistics update loop failure: {e}")
 
     async def client_update(self, account: str, work_type: str):

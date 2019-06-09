@@ -42,12 +42,19 @@ class DpowMQTT(object):
                 message = await self.connection.deliver_message()
                 topic, content = message.topic, message.data.decode("utf-8")
                 await self.callback(topic, content)
+            except KeyboardInterrupt:
+                return
             except ClientException as e:
                 error_count += 1
                 self.logger.critical(f"Client exception: {e}")
+                raise
             except Exception as e:
+                if not e.args:
+                    self.logger.debug("Empty exception, returned silently")
+                    return
                 error_count += 1
                 self.logger.critical(f"Unknown exception: {e}")
+                raise
             finally:
                 if error_count > 5:
                     return
@@ -59,4 +66,7 @@ class DpowMQTT(object):
                 await self.send("heartbeat", "", qos=QOS_1)
                 await asyncio.sleep(1)
         except Exception as e:
+            if not e.args:
+                self.logger.debug("Empty exception, returned silently")
+                return
             self.logger.error(f"Hearbeat failure: {e}")
