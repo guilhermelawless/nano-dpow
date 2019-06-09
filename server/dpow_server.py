@@ -68,7 +68,6 @@ class DpowServer(object):
         try:
             while 1:
                 stats = await self.database.all_statistics()
-                print(stats)
                 await self.mqtt.send("statistics", json.dumps(stats))
                 await asyncio.sleep(300)
         except Exception as e:
