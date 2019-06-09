@@ -26,7 +26,7 @@ class DpowRedis(object):
         on_demand = await self.get("stats:ondemand")
 
         public_services = list()
-        private_services = 0
+        private_services = {"count": 0, "precache": 0, "ondemand": 0}
         services = await self.set_members("services")
         for service in services:
             info = await self.hash_getmany(f"service:{service}", "public", "display", "website", "precache", "ondemand")
@@ -34,7 +34,9 @@ class DpowRedis(object):
                 del info["public"]
                 public_services.append(info)
             else:
-                private_services += 1
+                private_services["count"] += 1
+                private_services["precache"] += int(info["precache"])
+                private_services["ondemand"] += int(info["ondemand"])
         return dict(
             services = {
                 "public": public_services,
