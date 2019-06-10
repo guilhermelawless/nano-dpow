@@ -86,7 +86,9 @@ class WorkHandler(object):
                 else:
                     error = res_js.get('error', None)
                     if error:
-                        if error != "Cancelled":
+                        if error == "Cancelled":
+                            print(f"Cancelled {block_hash}")
+                        else:
                             print(f"Unexpected reply from work server: {error}")
             except Exception as e:
                 print(f"Work handler loop error: {e}")
