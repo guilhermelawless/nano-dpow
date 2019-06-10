@@ -185,81 +185,85 @@ class DpowServer(object):
         return web.Response()
 
     async def request_handle(self, request):
-        data = await request.json()
-        # logger.info(f"Request:\n{data}")
-        if {'hash', 'account', 'user', 'api_key'} <= data.keys():
-            service, api_key = data['user'], data['api_key']
-            api_key = hash_key(api_key)
+        try:
+            data = await request.json()
+            # logger.info(f"Request:\n{data}")
+            if {'hash', 'account', 'user', 'api_key'} <= data.keys():
+                service, api_key = data['user'], data['api_key']
+                api_key = hash_key(api_key)
 
-            #Verify API Key
-            db_key = await self.database.hash_get(f"service:{service}", "api_key")
-            if db_key is None:
-                logger.info(f"Received request with non existing service {service}")
-                return web.json_response({"error" : "User does not exist"})
-            elif not api_key == db_key:
-                logger.info(f"Received request with non existing api key {api_key} for service {service}")
-                return web.json_response({"error" : "Incorrect api key"})
+                #Verify API Key
+                db_key = await self.database.hash_get(f"service:{service}", "api_key")
+                if db_key is None:
+                    logger.info(f"Received request with non existing service {service}")
+                    return web.json_response({"error" : "User does not exist"})
+                elif not api_key == db_key:
+                    logger.info(f"Received request with non existing api key {api_key} for service {service}")
+                    return web.json_response({"error" : "Incorrect api key"})
 
-            block_hash, account = data['hash'], data['account'].replace("xrb_", "nano_")
+                block_hash, account = data['hash'], data['account'].replace("xrb_", "nano_")
 
-            try:
-                block_hash = nanolib.validate_block_hash(block_hash)
-                nanolib.validate_account_id(account)
-            except nanolib.InvalidBlockHash:
-                return web.json_response({"error" : "Invalid hash"})
-            except nanolib.InvalidAccount:
-                return web.json_response({"error" : "Invalid account"})
-
-
-            #Check if hash in redis db, if so return work
-            work = await self.database.get(f"block:{block_hash}")
-
-            if work is None:
-                await asyncio.gather(
-                    # Account frontier
-                    self.database.insert(f"account:{account}", block_hash),
-                    # Set incomplete work for new frontier
-                    self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
-                )
-
-            work_type = "precache"
-            #Request on demand work, return it
-            if work is None or work == DpowServer.WORK_PENDING:
-                work_type = "ondemand"
-                # Insert account into DB if not yet there
-                asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
-
-                # Create a Future to be set with work when complete
-                self.work_futures[block_hash] = loop.create_future()
-
-                # TODO dynamic difficulty
-                difficulty = difficulty_hex(nanolib.work.WORK_THRESHOLD)
-
-                # Ask for work on demand
-                await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_1)
-
-                # Wait on the work for some time
-                timeout = max(int(data.get('timeout', 5)), 1)
                 try:
-                    work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
-                except asyncio.TimeoutError:
-                    logger.warn(f"Timeout reached for {block_hash}")
-                    return web.json_response({"error" : "Timeout reached without work"})
-                finally:
-                    future = self.work_futures.pop(block_hash)
-                    future.cancel()
-                # logger.info(f"Work received: {work}")
+                    block_hash = nanolib.validate_block_hash(block_hash)
+                    nanolib.validate_account_id(account)
+                except nanolib.InvalidBlockHash:
+                    return web.json_response({"error" : "Invalid hash"})
+                except nanolib.InvalidAccount:
+                    return web.json_response({"error" : "Invalid account"})
+
+
+                #Check if hash in redis db, if so return work
+                work = await self.database.get(f"block:{block_hash}")
+
+                if work is None:
+                    await asyncio.gather(
+                        # Account frontier
+                        self.database.insert(f"account:{account}", block_hash),
+                        # Set incomplete work for new frontier
+                        self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
+                    )
+
+                work_type = "precache"
+                #Request on demand work, return it
+                if work is None or work == DpowServer.WORK_PENDING:
+                    work_type = "ondemand"
+                    # Insert account into DB if not yet there
+                    asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
+
+                    # Create a Future to be set with work when complete
+                    self.work_futures[block_hash] = loop.create_future()
+
+                    # TODO dynamic difficulty
+                    difficulty = difficulty_hex(nanolib.work.WORK_THRESHOLD)
+
+                    # Ask for work on demand
+                    await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_1)
+
+                    # Wait on the work for some time
+                    timeout = max(int(data.get('timeout', 5)), 1)
+                    try:
+                        work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
+                    except asyncio.TimeoutError:
+                        logger.warn(f"Timeout reached for {block_hash}")
+                        return web.json_response({"error" : "Timeout reached without work"})
+                    finally:
+                        future = self.work_futures.pop(block_hash)
+                        future.cancel()
+                    # logger.info(f"Work received: {work}")
+                else:
+                    # logger.info(f"Work in cache: {work}")
+                    pass
+
+                # Increase the work type counter for this service
+                asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
+
+                # If this is reached, work was obtained
+                return web.json_response({"work" : work})
             else:
-                # logger.info(f"Work in cache: {work}")
-                pass
-
-            # Increase the work type counter for this service
-            asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
-
-            # If this is reached, work was obtained
-            return web.json_response({"work" : work})
-        else:
-            return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"})
+                return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"})
+        except Exception as e:
+            logger.critical(f"Unknown exception {e}")
+            return web.json_response({"error" : f"Unknown error, please contact the maintainers and report the following message:\n{e}"})
 
 
 def main():
