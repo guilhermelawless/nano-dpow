@@ -136,10 +136,12 @@ class DpowClient(object):
 
     @asyncio.coroutine
     async def run(self):
-        await self.setup()
+        if not await self.setup():
+            return await self.close()
         await asyncio.gather(
             self.message_loop(),
-            self.heartbeat_check_loop()
+            self.heartbeat_check_loop(),
+            self.work_handler.loop()
         )
 
     @asyncio.coroutine
