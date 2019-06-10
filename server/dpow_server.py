@@ -73,7 +73,7 @@ class DpowServer(object):
                 await asyncio.sleep(300)
         except Exception as e:
             if not e.args:
-                logger.debug("Empty exception on statistics loop, returned silently")
+                logger.debug("Empty exception, returned silently")
                 return
             logger.error(f"Statistics update loop failure: {e}")
 
@@ -104,24 +104,27 @@ class DpowServer(object):
         # - Block corresponding value is WORK_PENDING if work is pending
         available = await self.database.get(f"block:{block_hash}")
         if not available:
-            logger.debug(f"Client {client} provided work for a removed or non-existing hash {block_hash}")
+            # logger.debug(f"Client {client} provided work for a removed or non-existing hash {block_hash}")
             return
         elif available != DpowServer.WORK_PENDING:
-            logger.debug(f"Client {client} provided work for hash {block_hash} with existing work {available}")
+            # logger.debug(f"Client {client} provided work for hash {block_hash} with existing work {available}")
             return
 
         try:
             nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
         except nanolib.InvalidWork:
-            # Invalid work, ignore
-            logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
+            # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
 
         # Set Future result if in memory
-        if block_hash in self.work_futures:
+        try:
             resulting_work = self.work_futures[block_hash]
             if not resulting_work.done():
                 resulting_work.set_result(work)
+        except KeyError:
+            pass
+        except Exception as e:
+            logger.error(f"Unknown error when setting work future: {e}")
 
         # Account information and DB update
         await asyncio.gather(
@@ -242,6 +245,9 @@ class DpowServer(object):
                 except asyncio.TimeoutError:
                     logger.warn(f"Timeout reached for {block_hash}")
                     return web.json_response({"error" : "Timeout reached without work"})
+                finally:
+                    future = self.work_futures.pop(block_hash)
+                    future.cancel()
                 # logger.info(f"Work received: {work}")
             else:
                 # logger.info(f"Work in cache: {work}")
@@ -261,6 +267,8 @@ def main():
 
     async def startup(app):
         logger.info("Server starting")
+        if config.debug:
+            logger.warn("Debug mode is on")
         try:
             await server.setup()
         except Exception as e:
