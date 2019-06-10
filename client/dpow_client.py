@@ -29,8 +29,9 @@ class DpowClient(object):
             loop=loop,
             config={
                 "auto_reconnect": True,
-                "reconnect_retries": 3,
-                "reconnect_max_interval": 60,
+                "reconnect_retries": 1000,
+                "reconnect_max_interval": 120,
+                "keep_alive": 60,
                 "default_qos": 0
             }
         )
@@ -96,7 +97,7 @@ class DpowClient(object):
         except ConnectException as e:
             print("Connection exception: {}".format(e))
             return False
-        self.client.config['reconnect_retries'] = 5000
+
         # Receive a heartbeat before continuing, this makes sure server is up
         await self.client.subscribe([("heartbeat", QOS_1)])
         try:
@@ -161,18 +162,20 @@ class DpowClient(object):
 
     @asyncio.coroutine
     async def message_loop(self):
-        try:
-            while self.running:
+        while self.running:
+            try:
                 message = await self.client.deliver_message()
                 self.handle_message(message)
-        except ClientException as e:
-            print("Client exception: {}".format(e))
-        except KeyboardInterrupt:
-            pass
-        except Exception as e:
-            print(e)
-        finally:
-            await self.close()
+            except KeyboardInterrupt:
+                self.running = False
+                break
+            except ClientException as e:
+                print(f"Client exception: {e}")
+                await asyncio.sleep(5)
+            except Exception as e:
+                print(f"Unknown exception: {e}")
+                await asyncio.sleep(20)
+        await self.close()
 
 
 if __name__ == "__main__":
