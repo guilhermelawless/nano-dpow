@@ -51,7 +51,7 @@ class DpowClient(object):
 
         if len(block_hash) == 64:
             asyncio.ensure_future(self.work_handler.queue_work(work_type, block_hash, difficulty), loop=loop)
-            print(f"Work request for hash {block_hash}")
+            # print(f"Work request for hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
 
@@ -62,11 +62,8 @@ class DpowClient(object):
             print("Could not parse message")
             return
         if len(block_hash) == 64:
-            if self.work_handler.is_queued(block_hash):
-                asyncio.ensure_future(self.work_handler.queue_cancel(block_hash), loop=loop)
-                print(f"Cancelling hash {block_hash}")
-            else:
-                print(f"Ignoring cancel for work that we did {block_hash}")
+            asyncio.ensure_future(self.work_handler.queue_cancel(block_hash), loop=loop)
+            # print(f"Cancelled hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
 

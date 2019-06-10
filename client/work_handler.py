@@ -16,7 +16,7 @@ class WorkQueue(asyncio.Queue):
         try:
             self._queue.pop(block_hash)
             return True
-        except ValueError:
+        except KeyError:
             return False
 
     def _put(self, item):
@@ -51,11 +51,8 @@ class WorkHandler(object):
         if self.session:
             await self.session.close()
 
-    def is_queued(self, block_hash: str):
-        return block_hash in self.work_queue
-
     async def queue_cancel(self, block_hash: str):
-        if self.work_queue.remove(block_hash):
+        if not self.work_queue.remove(block_hash):
             try:
                 await self.session.post(self.worker_uri, json={
                     "action": "work_cancel",
@@ -63,7 +60,6 @@ class WorkHandler(object):
                 })
             except Exception as e:
                 print(f"Work handler queue_cancel error: {e}")
-
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
         try:
@@ -88,8 +84,10 @@ class WorkHandler(object):
                 if 'work' in res_js:
                     await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
                 else:
-                    print(res_js['error'])
+                    error = res_js.get('error', None)
+                    if error:
+                        if error != "Cancelled":
+                            print(f"Unexpected reply from work server: {error}")
             except Exception as e:
                 print(f"Work handler loop error: {e}")
                 await asyncio.sleep(5)
-
