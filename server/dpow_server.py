@@ -4,6 +4,7 @@ config = DpowConfig() # takes a while to --help if this goes after imports
 
 import sys
 import json
+import datetime
 import hashlib
 import asyncio
 from aiohttp import web
@@ -244,11 +245,14 @@ class DpowServer(object):
                     try:
                         work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
                     except asyncio.TimeoutError:
-                        logger.warn(f"Timeout reached for {block_hash}")
+                        logger.warn(f"Timeout of {timeout} reached for {block_hash}")
                         return web.json_response({"error" : "Timeout reached without work"})
                     finally:
-                        future = self.work_futures.pop(block_hash)
-                        future.cancel()
+                        try:
+                            future = self.work_futures.pop(block_hash)
+                            future.cancel()
+                        except:
+                            pass
                     # logger.info(f"Work received: {work}")
                 else:
                     # logger.info(f"Work in cache: {work}")
@@ -262,8 +266,8 @@ class DpowServer(object):
             else:
                 return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"})
         except Exception as e:
-            logger.critical(f"Unknown exception {e}")
-            return web.json_response({"error" : f"Unknown error, please contact the maintainers and report the following message:\n{e}"})
+            logger.critical(f"Unknown exception: {e}")
+            return web.json_response({"error" : f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}"})
 
 
 def main():
