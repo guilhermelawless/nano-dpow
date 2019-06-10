@@ -3,8 +3,7 @@ import requests
 import aiohttp
 import aiohttp_requests
 import json
-from random import shuffle
-
+from random import choice
 
 class WorkQueue(asyncio.Queue):
     """Specialized subclass of asyncio.Queue that retrieves random entries"""
@@ -24,8 +23,10 @@ class WorkQueue(asyncio.Queue):
         self._queue[block_hash] = (difficulty, work_type)
 
     def _get(self):
-        # Items will be popped as (block_hash, (difficulty, work_type))
-        return self._queue.popitem()
+        # python3 has ordered dicts, simple popitem() would not be random
+        block_hash, _ = choice(list(self._queue.items()))
+        difficulty, work_type = self._queue.pop(block_hash)
+        return block_hash, (difficulty, work_type)
 
     def __contains__(self, block_hash):
         return block_hash in self._queue
