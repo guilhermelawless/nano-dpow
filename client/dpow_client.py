@@ -29,7 +29,7 @@ class DpowClient(object):
             loop=loop,
             config={
                 "auto_reconnect": True,
-                "reconnect_retries": 1000,
+                "reconnect_retries": 5000,
                 "reconnect_max_interval": 120,
                 "keep_alive": 60,
                 "default_qos": 0
@@ -169,12 +169,15 @@ class DpowClient(object):
             except KeyboardInterrupt:
                 self.running = False
                 break
-            except ClientException as e:
-                print(f"Client exception: {e}")
-                await asyncio.sleep(5)
             except Exception as e:
                 print(f"Unknown exception: {e}")
+                print(f"Sleeping a bit before retrying")
                 await asyncio.sleep(20)
+                try:
+                    await self.client.reconnect(cleansession=True)
+                except ConnectException as e:
+                    print("Connection exception: {}".format(e))
+                    break
         await self.close()
 
 
