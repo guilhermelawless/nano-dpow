@@ -63,7 +63,6 @@ class DpowClient(object):
             return
         if len(block_hash) == 64:
             asyncio.ensure_future(self.work_handler.queue_cancel(block_hash), loop=loop)
-            # print(f"Cancelled hash {block_hash}")
         else:
             print(f"Invalid hash {block_hash}")
 

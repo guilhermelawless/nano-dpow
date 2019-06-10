@@ -38,6 +38,7 @@ class WorkHandler(object):
         self.error_callback = error_callback
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = WorkQueue()
+        self.work_ongoing = set()
         self.session = None
 
     async def start(self):
@@ -52,7 +53,13 @@ class WorkHandler(object):
             await self.session.close()
 
     async def queue_cancel(self, block_hash: str):
+        try:
+            self.work_ongoing.remove(block_hash)
+        except:
+            # Work complete and removed by loop()
+            return
         if not self.work_queue.remove(block_hash):
+            # Work was already consumed but not complete, cancel it
             try:
                 await self.session.post(self.worker_uri, json={
                     "action": "work_cancel",
@@ -75,11 +82,18 @@ class WorkHandler(object):
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
                 print(f"Working {block_hash}")
+                self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
                     "action": "work_generate",
                     "hash": block_hash,
                     "difficulty": difficulty
                 })
+                try:
+                    self.work_ongoing.remove(block_hash)
+                except:
+                    # Removed by queue_cancel, no longer needed
+                    print(f"Cancelled {block_hash}")
+                    continue
                 res_js = await res.json()
                 if 'work' in res_js:
                     await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
