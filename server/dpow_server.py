@@ -23,14 +23,19 @@ def hash_key(x: str):
     return m.digest()
 
 
-def difficulty_hex(t: int):
+def difficulty_hex(t: int) -> str:
     return hex(t)[2:]
+
+
+def to_multiplier(difficulty: int, base_difficulty: int = nanolib.work.WORK_THRESHOLD) -> float:
+    return float((1 << 64) - base_difficulty) / float((1 << 64) - difficulty)
 
 
 class DpowServer(object):
     WORK_PENDING = "0"
     BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
     ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
+    MAX_DIFFICULTY_MULTIPLIER = 5.0
 
     def __init__(self):
         self.work_futures = dict()
@@ -208,19 +213,29 @@ class DpowServer(object):
                     return web.json_response({"error" : "Incorrect api key"})
 
                 block_hash = data['hash']
-                try:
-                    account = data['account'].replace("xrb_", "nano_")
-                except KeyError:
-                    account = None
+                account = data.get('account', None)
+                difficulty = data.get('difficulty', None)
 
                 try:
                     block_hash = nanolib.validate_block_hash(block_hash)
                     if account:
+                        account = account.replace("xrb_", "nano_")
                         nanolib.validate_account_id(account)
+                    if difficulty:
+                        difficulty = int('0x'+difficulty, 16)
+                        nanolib.validate_threshold(difficulty)
+
                 except nanolib.InvalidBlockHash:
                     return web.json_response({"error" : "Invalid hash"})
                 except nanolib.InvalidAccount:
                     return web.json_response({"error" : "Invalid account"})
+                except ValueError:
+                    return web.json_response({"error" : "Invalid difficulty"})
+                except nanolib.InvalidThreshold:
+                    return web.json_response({"error" : "Difficulty too low"})
+
+                if difficulty and to_multiplier(difficulty) > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
+                    return web.json_response({"error" : "Difficulty too high"})
 
 
                 #Check if hash in redis db, if so return work
@@ -232,6 +247,7 @@ class DpowServer(object):
 
                 work_type = "precache"
 
+                # TODO also check if precached difficulty is close enough to the requested difficulty (Dynamic PoW)
                 if work is None or work == DpowServer.WORK_PENDING:
                     #Request on demand work
                     work_type = "ondemand"
@@ -245,8 +261,8 @@ class DpowServer(object):
                     # Create a Future to be set with work when complete
                     self.work_futures[block_hash] = loop.create_future()
 
-                    # TODO dynamic difficulty
-                    difficulty = difficulty_hex(nanolib.work.WORK_THRESHOLD)
+                    # Base difficulty if not provided
+                    difficulty = difficulty_hex(difficulty or nanolib.work.WORK_THRESHOLD)
 
                     # Ask for work on demand
                     await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_1)
