@@ -4,7 +4,7 @@ import aiohttp
 import aiohttp_requests
 import json
 from random import choice
-from time import time
+
 
 class WorkQueue(asyncio.Queue):
     """Specialized subclass of asyncio.Queue that retrieves random entries"""
@@ -55,19 +55,22 @@ class WorkHandler(object):
             await self.session.close()
 
     async def queue_cancel(self, block_hash: str):
-        try:
-            self.work_ongoing.remove(block_hash)
-        except:
-            pass
-        if not self.work_queue.remove(block_hash):
-            # Work was already consumed but not complete, cancel it
+        # If it's queued up work, simply remove it
+        if self.work_queue.remove(block_hash):
+            print(f"REMOVE {block_hash[:10]}...")
+
+        # Can also be work that is currently being done
+        elif block_hash in self.work_ongoing:
+            # Remove so that loop() does not send it when complete
             try:
+                self.work_ongoing.remove(block_hash)
                 await self.session.post(self.worker_uri, json={
                     "action": "work_cancel",
                     "hash": block_hash
                 })
             except Exception as e:
                 print(f"Work handler queue_cancel error: {e}")
+
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
         try:
@@ -82,7 +85,7 @@ class WorkHandler(object):
         while 1:
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
-                print(f"Working {block_hash}")
+                print(f"WORK {block_hash[:10]}...")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
                     "action": "work_generate",
@@ -93,7 +96,7 @@ class WorkHandler(object):
                     self.work_ongoing.remove(block_hash)
                 except:
                     # Removed by queue_cancel, no longer needed
-                    print(f"Cancelled {block_hash}")
+                    print(f"CANCEL {block_hash[:10]}...")
                     continue
                 res_js = await res.json()
                 if 'work' in res_js:
@@ -101,10 +104,7 @@ class WorkHandler(object):
                 else:
                     error = res_js.get('error', None)
                     if error:
-                        if error == "Cancelled":
-                            print(f"Cancelled {block_hash}")
-                        else:
-                            print(f"Unexpected reply from work server: {error}")
+                        print(f"Unexpected reply from work server: {error}")
             except Exception as e:
                 print(f"Work handler loop error: {e}")
                 await asyncio.sleep(5)

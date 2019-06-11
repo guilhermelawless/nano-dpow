@@ -16,7 +16,7 @@ loop = asyncio.get_event_loop()
 
 async def send_work_result(client, work_type, block_hash, work):
     await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_1)
-    print(f"Sent {block_hash}")
+    print(f"SEND {block_hash[:10]}...")
 
 
 async def work_server_error_callback():
@@ -69,7 +69,7 @@ class DpowClient(object):
 
     def handle_stats(self, message):
         try:
-            print("Stats", json.loads(message.data))
+            print("STATS", json.loads(message.data))
         except Exception as e:
             print(f"Could not parse stats: {e}")
             print(message.data)
