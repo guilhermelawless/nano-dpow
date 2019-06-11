@@ -89,7 +89,7 @@ class DpowClient(object):
 
     async def setup(self):
         try:
-            await self.client.connect(config.server, cleansession=True)
+            await self.client.connect(config.server, cleansession=False)
         except ConnectException as e:
             print("Connection exception: {}".format(e))
             return False
@@ -106,6 +106,18 @@ class DpowClient(object):
             return False
         self.server_online = True
 
+        # Subscribe to all necessary topics
+        await self.subscribe()
+
+        try:
+            await self.work_handler.start()
+        except Exception as e:
+            print(e)
+            return False
+        self.running = True
+        return True
+
+    async def subscribe(self):
         if config.work_type == "any":
             desired_work = "#"
         else:
@@ -116,13 +128,6 @@ class DpowClient(object):
             (f"cancel/{desired_work}", QOS_1),
             (f"client/{config.payout}", QOS_0)
         ])
-        try:
-            await self.work_handler.start()
-        except Exception as e:
-            print(e)
-            return False
-        self.running = True
-        return True
 
     async def close(self):
         self.running = False
@@ -170,7 +175,8 @@ class DpowClient(object):
                 print(f"Sleeping a bit before retrying")
                 await asyncio.sleep(20)
                 try:
-                    await self.client.reconnect(cleansession=True)
+                    await self.client.reconnect(cleansession=False)
+                    print("Successfully reconnected")
                 except ConnectException as e:
                     print("Connection exception: {}".format(e))
                     break

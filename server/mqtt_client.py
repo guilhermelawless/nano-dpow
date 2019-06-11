@@ -14,16 +14,19 @@ class DpowMQTT(object):
             loop=loop,
             config={
                 "auto_reconnect": True,
-                "reconnect_retries": 3,
+                "reconnect_retries": 1000,
                 "reconnect_max_interval": 10,
                 "default_qos": 0
             }
         )
-        self.connect_wait = self.connection.connect(broker, cleansession=True)
+        self.connect_wait = self.connection.connect(broker, cleansession=False)
         self.callback = message_handle_cb
 
     async def setup(self):
         await self.connect_wait
+        await self.subscribe()
+
+    async def subscribe(self):
         await self.connection.subscribe([
             ("result/#", QOS_1)
         ])
@@ -61,12 +64,13 @@ class DpowMQTT(object):
 
     @asyncio.coroutine
     async def heartbeat_loop(self):
-        try:
-            while 1:
+        while 1:
+            try:
                 await self.send("heartbeat", "", qos=QOS_1)
+            except Exception as e:
+                if not e.args:
+                    self.logger.debug("Empty exception, returned silently")
+                    return
+                self.logger.error(f"Hearbeat failure: {e}")
+            finally:
                 await asyncio.sleep(1)
-        except Exception as e:
-            if not e.args:
-                self.logger.debug("Empty exception, returned silently")
-                return
-            self.logger.error(f"Hearbeat failure: {e}")
