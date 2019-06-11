@@ -194,7 +194,7 @@ class DpowServer(object):
         try:
             data = await request.json()
             # logger.info(f"Request:\n{data}")
-            if {'hash', 'account', 'user', 'api_key'} <= data.keys():
+            if {'hash', 'user', 'api_key'} <= data.keys():
                 service, api_key = data['user'], data['api_key']
                 api_key = hash_key(api_key)
 
