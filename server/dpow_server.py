@@ -171,13 +171,12 @@ class DpowServer(object):
         await self.block_arrival_handle(block_hash, account)
 
     async def block_arrival_callback_handle(self, request):
-        peername = request.transport.get_extra_info('peername')
-        if peername is not None:
-            host, port = peername
-            if host == config.callback_remote_ip:
-                data = await request.json()
-                block_hash, account = data['hash'], data['account']
-                await self.block_arrival_handle(block_hash, account)
+        try:
+            data = await request.json()
+            block_hash, account = data['hash'], data['account']
+            await self.block_arrival_handle(block_hash, account)
+        except:
+            logger.error(f"Unable to process block. Request: {request}")
         return web.Response()
 
     async def request_handle(self, request):
@@ -260,6 +259,8 @@ class DpowServer(object):
                 return web.json_response({"work" : work})
             else:
                 return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"})
+        except json.decoder.JSONDecodeError:
+            return web.json_response({"error": "Bad request (not json)"})
         except Exception as e:
             logger.critical(f"Unknown exception: {e}")
             return web.json_response({"error" : f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}"})
@@ -278,21 +279,44 @@ def main():
             logger.critical(e)
             sys.exit(1)
 
-        asyncio.ensure_future(server.loop(), loop=loop)
-
     async def cleanup(app):
         logger.info("Server shutting down")
         await server.close()
 
-    app = web.Application()
+    # use websockets or callback from the node
+    app_blocks = None
     if not config.use_websocket:
-        app.router.add_post('/', server.block_arrival_callback_handle)
-    app.router.add_post('/service/', server.request_handle)
-    app.on_startup.append(startup)
-    app.on_cleanup.append(cleanup)
+        app_blocks = web.Application()
+        app_blocks.router.add_post('/', server.block_arrival_callback_handle)
+        handler_blocks = app_blocks.make_handler()
+        coroutine_blocks = loop.create_server(handler_blocks, config.web_host, config.blocks_port)
+        server_blocks = loop.run_until_complete(coroutine_blocks)
 
-    web.run_app(app, host=config.web_host, port=config.web_port)
+    # endpoint for service requests
+    app_requests = web.Application()
+    app_requests.on_startup.append(startup)
+    app_requests.on_cleanup.append(cleanup)
+    app_requests.router.add_post('/service/', server.request_handle)
+    handler_requests = app_requests.make_handler()
+    coroutine_requests = loop.create_server(handler_requests, config.web_host, config.requests_port)
+    server_requests = loop.run_until_complete(coroutine_requests)
 
+    try:
+        loop.run_until_complete(app_requests.startup())
+        loop.run_until_complete(server.loop())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if app_blocks:
+            server_blocks.close()
+            loop.run_until_complete(handler_blocks.shutdown(60.0))
+
+        server_requests.close()
+        loop.run_until_complete(app_requests.shutdown())
+        loop.run_until_complete(handler_requests.shutdown(60.0))
+        loop.run_until_complete(app_requests.cleanup())
+
+    loop.close()
 
 if __name__ == "__main__":
     main()
