@@ -4,6 +4,7 @@ import aiohttp
 import aiohttp_requests
 import json
 from random import choice
+from time import time
 
 class WorkQueue(asyncio.Queue):
     """Specialized subclass of asyncio.Queue that retrieves random entries"""
@@ -40,7 +41,7 @@ class WorkHandler(object):
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = WorkQueue()
         self.work_ongoing = set()
-        self.future_cancels = set()
+        self.future_cancels = dict()
         self.session = None
 
     async def start(self):
@@ -55,12 +56,12 @@ class WorkHandler(object):
             await self.session.close()
 
     async def queue_cancel(self, block_hash: str):
-        self.future_cancels.add(block_hash)
+        self.future_cancels[block_hash] = time()
+
         try:
             self.work_ongoing.remove(block_hash)
         except:
-            # Work complete and removed by loop()
-            return
+            pass
         if not self.work_queue.remove(block_hash):
             # Work was already consumed but not complete, cancel it
             try:
@@ -68,9 +69,6 @@ class WorkHandler(object):
                     "action": "work_cancel",
                     "hash": block_hash
                 })
-                self.future_cancels.remove(block_hash)
-            except KeyError:
-                pass
             except Exception as e:
                 print(f"Work handler queue_cancel error: {e}")
 
@@ -85,9 +83,12 @@ class WorkHandler(object):
     @asyncio.coroutine
     async def cleanup_loop(self):
         while 1:
-            await asyncio.sleep(24*60*60) # every 24 hours
-            print("Cleared future cancels (24h period)")
-            self.future_cancels.clear()
+            # every hour clear old future cancels
+            await asyncio.sleep(1*60*60)
+            now = time()
+            for block in filter(lambda c: now - c[1] > 100, self.future_cancels.items()):
+                self.future_cancels.pop(block)
+            print("Cleared old future cancels (24h period)")
 
     @asyncio.coroutine
     async def loop(self):
@@ -95,9 +96,11 @@ class WorkHandler(object):
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
                 if block_hash in self.future_cancels:
-                    self.future_cancels.remove(block_hash)
-                    print(f"Previous cancel {block_hash}")
-                    continue
+                    cancel_time = self.future_cancels.pop(block_hash)
+                    # if cancel was more than 20 seconds ago, the server might just need it again
+                    if time() - cancel_time < 20:
+                        print(f"Previous cancel {block_hash}")
+                        continue
                 print(f"Working {block_hash}")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
@@ -113,10 +116,6 @@ class WorkHandler(object):
                     continue
                 res_js = await res.json()
                 if 'work' in res_js:
-                    try:
-                        self.future_cancels.remove(block_hash)
-                    except KeyError:
-                        pass
                     await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
                 else:
                     error = res_js.get('error', None)
