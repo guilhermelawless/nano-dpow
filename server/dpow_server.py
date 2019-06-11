@@ -139,37 +139,30 @@ class DpowServer(object):
     async def block_arrival_handle(self, block_hash, account):
         account_exists = await self.database.exists(f"account:{account}")
 
-        if account_exists:
-            frontier = await self.database.get(f"account:{account}")
-            if frontier != block_hash:
-                await asyncio.gather(
+        # Only precache for accounts in the system (or debug mode)
+        if account_exists or config.debug:
+            previous_frontier = await self.database.get(f"account:{account}")
+            if (previous_frontier and previous_frontier != block_hash) or config.debug:
+                await asyncio.gather (
                     # Account frontier
                     self.database.insert(f"account:{account}", block_hash),
                     # Work for old frontier no longer needed
-                    self.database.delete(f"block:{frontier}"),
+                    self.database.delete(f"block:{previous_frontier}"),
                     # Set incomplete work for new frontier
-                    self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
+                    self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING),
+                    # Send for precache
+                    self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
                 )
-                await self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
             else:
                 # logger.debug(f"Duplicate hash {block_hash}")
                 pass
 
-        else:
-            # logger.debug(f"New account: {account}")
-            aws = [
-                # Account frontier
-                self.database.insert(f"account:{account}", block_hash),
-                # Set incomplete work for new frontier
-                self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
-            ]
-            if config.debug:
-                aws.append(self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}"))
-            await asyncio.gather(*aws)
-
     async def block_arrival_websocket_handle(self, data):
-        block_hash, account = data['hash'], data['account']
-        await self.block_arrival_handle(block_hash, account)
+        try:
+            block_hash, account = data['hash'], data['account']
+            await self.block_arrival_handle(block_hash, account)
+        except:
+            logger.error(f"Unable to process block. Request: {request}")
 
     async def block_arrival_callback_handle(self, request):
         try:
