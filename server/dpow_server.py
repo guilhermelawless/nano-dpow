@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from config_parse import DpowConfig
+from dpow import *
 config = DpowConfig() # takes a while to --help if this goes after imports
 
 import sys
@@ -11,15 +11,10 @@ from aiohttp import web
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 import nanolib
-from redis_db import DpowRedis
-from mqtt_client import DpowMQTT
-from websocket_client import WebsocketClient
-import dpow_logger
-
 
 loop = asyncio.get_event_loop()
 config = DpowConfig()
-logger = dpow_logger.get_logger()
+logger = get_logger()
 
 
 def hash_key(x: str):
