@@ -29,6 +29,8 @@ def difficulty_hex(t: int):
 
 class DpowServer(object):
     WORK_PENDING = "0"
+    BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
+    ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
 
     def __init__(self):
         self.work_futures = dict()
@@ -125,7 +127,7 @@ class DpowServer(object):
         # Account information and DB update
         await asyncio.gather(
             self.client_update(client, work_type),
-            self.database.insert(f"block:{block_hash}", work)
+            self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY)
         )
 
         # As we've got work now send cancel command to clients and do a stats update
@@ -158,9 +160,9 @@ class DpowServer(object):
         if should_precache:
             aws = [
                 # Account frontier update
-                self.database.insert(f"account:{account}", block_hash),
+                self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY),
                 # Incomplete work for new frontier
-                self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING),
+                self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY),
                 # Send for precache
                 self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
             ]
@@ -226,7 +228,7 @@ class DpowServer(object):
 
                 if work is None:
                     # Set incomplete work
-                    await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
+                    await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY)
 
                 work_type = "precache"
 
@@ -238,7 +240,7 @@ class DpowServer(object):
                     # There is still the possibility we recognize the need to precache based on the previous block
                     if account:
                         # Update account frontier
-                        asyncio.ensure_future(self.database.insert(f"account:{account}", block_hash))
+                        asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
 
                     # Create a Future to be set with work when complete
                     self.work_futures[block_hash] = loop.create_future()

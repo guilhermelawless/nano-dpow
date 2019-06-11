@@ -51,6 +51,9 @@ class DpowRedis(object):
     async def insert(self, key: str, value: str):
         return await self.pool.execute('set', key, value )
 
+    async def insert_expire(self, key: str, value: str, seconds: int):
+        return await self.pool.execute('setex', key, seconds, value)
+
     async def delete(self, key: str):
         return await self.pool.execute('del', key)
 
