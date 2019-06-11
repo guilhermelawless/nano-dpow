@@ -92,7 +92,7 @@ class DpowServer(object):
             block_hash, work, client = content.split(',')
             # logger.info(f"Message {block_hash} {work} {client}")
         except Exception as e:
-            logger.warn(f"Could not parse message: {e}")
+            # logger.warn(f"Could not parse message: {e}")
             return
 
         # Check if work is needed
