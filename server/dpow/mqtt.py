@@ -32,7 +32,10 @@ class DpowMQTT(object):
         ])
 
     async def close(self):
-        await self.connection.disconnect()
+        try:
+            await self.connection.disconnect()
+        except:
+            pass
 
     async def send(self, topic: str, message: str, qos=QOS_0):
         await self.connection.publish(topic, str.encode(message), qos=qos)
