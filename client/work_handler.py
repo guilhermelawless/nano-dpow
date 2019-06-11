@@ -40,6 +40,7 @@ class WorkHandler(object):
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = WorkQueue()
         self.work_ongoing = set()
+        self.future_cancels = set()
         self.session = None
 
     async def start(self):
@@ -54,6 +55,7 @@ class WorkHandler(object):
             await self.session.close()
 
     async def queue_cancel(self, block_hash: str):
+        self.future_cancels.add(block_hash)
         try:
             self.work_ongoing.remove(block_hash)
         except:
@@ -66,6 +68,9 @@ class WorkHandler(object):
                     "action": "work_cancel",
                     "hash": block_hash
                 })
+                self.future_cancels.remove(block_hash)
+            except KeyError:
+                pass
             except Exception as e:
                 print(f"Work handler queue_cancel error: {e}")
 
@@ -78,10 +83,21 @@ class WorkHandler(object):
             await self.error_callback()
 
     @asyncio.coroutine
+    async def cleanup_loop(self):
+        while 1:
+            await asyncio.sleep(24*60*60) # every 24 hours
+            print("Cleared future cancels (24h period)")
+            self.future_cancels.clear()
+
+    @asyncio.coroutine
     async def loop(self):
         while 1:
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
+                if block_hash in self.future_cancels:
+                    self.future_cancels.remove(block_hash)
+                    print(f"Previous cancel {block_hash}")
+                    continue
                 print(f"Working {block_hash}")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
@@ -97,6 +113,10 @@ class WorkHandler(object):
                     continue
                 res_js = await res.json()
                 if 'work' in res_js:
+                    try:
+                        self.future_cancels.remove(block_hash)
+                    except KeyError:
+                        pass
                     await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
                 else:
                     error = res_js.get('error', None)

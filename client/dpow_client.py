@@ -16,6 +16,7 @@ loop = asyncio.get_event_loop()
 
 async def send_work_result(client, work_type, block_hash, work):
     await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_1)
+    print(f"Sent {block_hash}")
 
 
 async def work_server_error_callback():
@@ -143,7 +144,8 @@ class DpowClient(object):
         await asyncio.gather(
             self.message_loop(),
             self.heartbeat_check_loop(),
-            self.work_handler.loop()
+            self.work_handler.loop(),
+            self.work_handler.cleanup_loop()
         )
 
     @asyncio.coroutine
