@@ -136,31 +136,45 @@ class DpowServer(object):
             self.database.set_add(f"clients", client)
         ))
 
-    async def block_arrival_handle(self, block_hash, account):
-        account_exists = await self.database.exists(f"account:{account}")
+    async def block_arrival_handle(self, block_hash, account, previous):
+        should_precache = config.debug
+        previous_exists = None
+        old_frontier = await self.database.get(f"account:{account}")
+
+        if old_frontier:
+            # Account is registered
+            if old_frontier == block_hash:
+                # Duplicate hash
+                return
+            else:
+                should_precache = True
+        else:
+            # Account is not registered - but maybe the previous block is there
+            previous_exists = await self.database.exists(f"block:{previous}")
+            if previous_exists:
+                should_precache = True
 
         # Only precache for accounts in the system (or debug mode)
-        if account_exists or config.debug:
-            previous_frontier = await self.database.get(f"account:{account}")
-            if (previous_frontier and previous_frontier != block_hash) or config.debug:
-                await asyncio.gather (
-                    # Account frontier
-                    self.database.insert(f"account:{account}", block_hash),
-                    # Work for old frontier no longer needed
-                    self.database.delete(f"block:{previous_frontier}"),
-                    # Set incomplete work for new frontier
-                    self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING),
-                    # Send for precache
-                    self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
-                )
-            else:
-                # logger.debug(f"Duplicate hash {block_hash}")
-                pass
+        if should_precache:
+            aws = [
+                # Account frontier update
+                self.database.insert(f"account:{account}", block_hash),
+                # Incomplete work for new frontier
+                self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING),
+                # Send for precache
+                self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
+            ]
+            if old_frontier:
+                # Work for old frontier no longer needed
+                aws.append(self.database.delete(f"block:{old_frontier}"))
+            elif previous_exists:
+                aws.append(self.database.delete(f"block:{previous}"))
+            await asyncio.gather (*aws)
 
     async def block_arrival_websocket_handle(self, data):
         try:
-            block_hash, account = data['hash'], data['account']
-            await self.block_arrival_handle(block_hash, account)
+            block_hash, account, previous = data['hash'], data['account'], data['previous']
+            await self.block_arrival_handle(block_hash, account, previous)
         except:
             logger.error(f"Unable to process block. Request: {request}")
 
@@ -168,7 +182,8 @@ class DpowServer(object):
         try:
             data = await request.json()
             block_hash, account = data['hash'], data['account']
-            await self.block_arrival_handle(block_hash, account)
+            previous = json.loads(data['block'])['previous']
+            await self.block_arrival_handle(block_hash, account, previous)
         except:
             logger.error(f"Unable to process block. Request: {request}")
         return web.Response()
@@ -190,11 +205,16 @@ class DpowServer(object):
                     logger.info(f"Received request with non existing api key {api_key} for service {service}")
                     return web.json_response({"error" : "Incorrect api key"})
 
-                block_hash, account = data['hash'], data['account'].replace("xrb_", "nano_")
+                block_hash = data['hash']
+                try:
+                    account = data['account'].replace("xrb_", "nano_")
+                except KeyError:
+                    account = None
 
                 try:
                     block_hash = nanolib.validate_block_hash(block_hash)
-                    nanolib.validate_account_id(account)
+                    if account:
+                        nanolib.validate_account_id(account)
                 except nanolib.InvalidBlockHash:
                     return web.json_response({"error" : "Invalid hash"})
                 except nanolib.InvalidAccount:
@@ -205,19 +225,20 @@ class DpowServer(object):
                 work = await self.database.get(f"block:{block_hash}")
 
                 if work is None:
-                    await asyncio.gather(
-                        # Account frontier
-                        self.database.insert(f"account:{account}", block_hash),
-                        # Set incomplete work for new frontier
-                        self.database.insert(f"block:{block_hash}" , DpowServer.WORK_PENDING),
-                    )
+                    # Set incomplete work
+                    await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
 
                 work_type = "precache"
-                #Request on demand work, return it
+
                 if work is None or work == DpowServer.WORK_PENDING:
+                    #Request on demand work
                     work_type = "ondemand"
-                    # Insert account into DB if not yet there
-                    asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
+
+                    # If account is not provided, service runs a risk of the next work not being precached for
+                    # There is still the possibility we recognize the need to precache based on the previous block
+                    if account:
+                        # Insert account into DB if not yet there
+                        asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
 
                     # Create a Future to be set with work when complete
                     self.work_futures[block_hash] = loop.create_future()
