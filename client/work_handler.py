@@ -41,7 +41,6 @@ class WorkHandler(object):
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = WorkQueue()
         self.work_ongoing = set()
-        self.future_cancels = dict()
         self.session = None
 
     async def start(self):
@@ -56,8 +55,6 @@ class WorkHandler(object):
             await self.session.close()
 
     async def queue_cancel(self, block_hash: str):
-        self.future_cancels[block_hash] = time()
-
         try:
             self.work_ongoing.remove(block_hash)
         except:
@@ -81,26 +78,10 @@ class WorkHandler(object):
             await self.error_callback()
 
     @asyncio.coroutine
-    async def cleanup_loop(self):
-        while 1:
-            # every hour clear old future cancels
-            await asyncio.sleep(1*60*60)
-            now = time()
-            for block in filter(lambda c: now - c[1] > 100, self.future_cancels.items()):
-                self.future_cancels.pop(block)
-            print("Cleared old future cancels (24h period)")
-
-    @asyncio.coroutine
     async def loop(self):
         while 1:
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
-                if block_hash in self.future_cancels:
-                    cancel_time = self.future_cancels.pop(block_hash)
-                    # if cancel was more than 20 seconds ago, the server might just need it again
-                    if time() - cancel_time < 20:
-                        print(f"Previous cancel {block_hash}")
-                        continue
                 print(f"Working {block_hash}")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={

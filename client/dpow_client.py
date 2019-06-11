@@ -144,8 +144,7 @@ class DpowClient(object):
         await asyncio.gather(
             self.message_loop(),
             self.heartbeat_check_loop(),
-            self.work_handler.loop(),
-            self.work_handler.cleanup_loop()
+            self.work_handler.loop()
         )
 
     @asyncio.coroutine
