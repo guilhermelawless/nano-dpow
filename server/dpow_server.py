@@ -237,8 +237,8 @@ class DpowServer(object):
                     # If account is not provided, service runs a risk of the next work not being precached for
                     # There is still the possibility we recognize the need to precache based on the previous block
                     if account:
-                        # Insert account into DB if not yet there
-                        asyncio.ensure_future(self.database.insert_if_noexist(f"account:{account}", block_hash))
+                        # Update account frontier
+                        asyncio.ensure_future(self.database.insert(f"account:{account}", block_hash))
 
                     # Create a Future to be set with work when complete
                     self.work_futures[block_hash] = loop.create_future()
