@@ -152,7 +152,8 @@ class DpowServer(object):
                 )
                 await self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
             else:
-                logger.debug(f"Duplicate hash {block_hash}")
+                # logger.debug(f"Duplicate hash {block_hash}")
+                pass
 
         else:
             # logger.debug(f"New account: {account}")
