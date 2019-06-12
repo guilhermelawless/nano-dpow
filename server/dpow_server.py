@@ -182,8 +182,8 @@ class DpowServer(object):
         try:
             block_hash, account, previous = data['hash'], data['account'], data['previous']
             await self.block_arrival_handle(block_hash, account, previous)
-        except:
-            logger.error(f"Unable to process block. Request: {request}")
+        except Exception as e:
+            logger.error(f"Unable to process block: {e}")
 
     async def block_arrival_callback_handle(self, request):
         try:
@@ -191,8 +191,8 @@ class DpowServer(object):
             block_hash, account = data['hash'], data['account']
             previous = json.loads(data['block'])['previous']
             await self.block_arrival_handle(block_hash, account, previous)
-        except:
-            logger.error(f"Unable to process block. Request: {request}")
+        except Exception as e:
+            logger.error(f"Unable to process block: {e}")
         return web.Response()
 
     async def request_handle(self, request):

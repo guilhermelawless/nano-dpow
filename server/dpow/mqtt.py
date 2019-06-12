@@ -9,7 +9,7 @@ class DpowMQTT(object):
 
     def __init__(self, broker: str, loop, message_handle_cb, logger=logging):
 
-        self.ok = False
+        self.ok = True
         self.logger = logger
         self.connection = MQTTClient(
             loop=loop,
@@ -26,7 +26,6 @@ class DpowMQTT(object):
     async def setup(self):
         await self.connect_wait
         await self.subscribe()
-        self.ok = True
 
     async def subscribe(self):
         await self.connection.subscribe([
@@ -41,7 +40,14 @@ class DpowMQTT(object):
             pass
 
     async def send(self, topic: str, message: str, qos=QOS_0):
-        await self.connection.publish(topic, str.encode(message), qos=qos)
+        try:
+            await self.connection.publish(topic, str.encode(message), qos=qos)
+            if not self.ok:
+                self.logger.info("MQTT client is connected again")
+                self.ok = True
+        except Exception as e:
+            self.logger.critical(f"Error while publishing to MQTT: {e}")
+            self.ok = False
 
     @asyncio.coroutine
     async def message_receive_loop(self):
@@ -58,14 +64,12 @@ class DpowMQTT(object):
             except ClientException as e:
                 self.ok = False
                 self.logger.critical(f"Client exception: {e}")
-                raise
             except Exception as e:
                 self.ok = False
                 if not e.args:
                     self.logger.debug("Empty exception, returned silently")
                     return
                 self.logger.critical(f"Unknown exception: {e}")
-                raise
 
     @asyncio.coroutine
     async def heartbeat_loop(self):
