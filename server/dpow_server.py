@@ -308,6 +308,7 @@ def main():
             logger.warn("Debug mode is on")
         try:
             await server.setup()
+            asyncio.ensure_future(server.loop(), loop=loop)
         except Exception as e:
             logger.critical(e)
             sys.exit(1)
@@ -330,24 +331,17 @@ def main():
     app_requests.on_startup.append(startup)
     app_requests.on_cleanup.append(cleanup)
     app_requests.router.add_post('/service/', server.request_handle)
-    handler_requests = app_requests.make_handler()
-    coroutine_requests = loop.create_server(handler_requests, config.web_host, config.requests_port)
-    server_requests = loop.run_until_complete(coroutine_requests)
-
     try:
-        loop.run_until_complete(app_requests.startup())
-        loop.run_until_complete(server.loop())
+        if config.web_path:
+            web.run_app(app_requests, host=config.web_host, port=config.requests_port, path=config.web_path)
+        else:
+            web.run_app(app_requests, host=config.web_host, port=config.requests_port)
     except KeyboardInterrupt:
         pass
     finally:
         if app_blocks:
             server_blocks.close()
             loop.run_until_complete(handler_blocks.shutdown(60.0))
-
-        server_requests.close()
-        loop.run_until_complete(app_requests.shutdown())
-        loop.run_until_complete(handler_requests.shutdown(60.0))
-        loop.run_until_complete(app_requests.cleanup())
 
     loop.close()
 
