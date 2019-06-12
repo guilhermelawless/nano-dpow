@@ -9,6 +9,7 @@ class DpowMQTT(object):
 
     def __init__(self, broker: str, loop, message_handle_cb, logger=logging):
 
+        self.ok = False
         self.logger = logger
         self.connection = MQTTClient(
             loop=loop,
@@ -25,6 +26,7 @@ class DpowMQTT(object):
     async def setup(self):
         await self.connect_wait
         await self.subscribe()
+        self.ok = True
 
     async def subscribe(self):
         await self.connection.subscribe([
@@ -33,6 +35,7 @@ class DpowMQTT(object):
 
     async def close(self):
         try:
+            self.ok = False
             await self.connection.disconnect()
         except:
             pass
@@ -42,35 +45,36 @@ class DpowMQTT(object):
 
     @asyncio.coroutine
     async def message_receive_loop(self):
-        error_count = 0
         while 1:
             try:
                 message = await self.connection.deliver_message()
+                if not self.ok:
+                    self.logger.info("MQTT client is connected again")
+                    self.ok = True
                 topic, content = message.topic, message.data.decode("utf-8")
                 await self.callback(topic, content)
             except KeyboardInterrupt:
                 return
             except ClientException as e:
-                error_count += 1
+                self.ok = False
                 self.logger.critical(f"Client exception: {e}")
                 raise
             except Exception as e:
+                self.ok = False
                 if not e.args:
                     self.logger.debug("Empty exception, returned silently")
                     return
-                error_count += 1
                 self.logger.critical(f"Unknown exception: {e}")
                 raise
-            finally:
-                if error_count > 5:
-                    return
 
     @asyncio.coroutine
     async def heartbeat_loop(self):
         while 1:
             try:
-                await self.send("heartbeat", "", qos=QOS_1)
+                if self.ok:
+                    await self.send("heartbeat", "", qos=QOS_1)
             except Exception as e:
+                self.ok = False
                 if not e.args:
                     self.logger.debug("Empty exception, returned silently")
                     return
