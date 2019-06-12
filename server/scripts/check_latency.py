@@ -2,7 +2,7 @@ import paho.mqtt.client as mqtt
 import json
 from time import perf_counter
 
-host = "139.59.134.66"
+host = "dpow.nanocenter.org"
 works = dict()
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -17,7 +17,7 @@ def on_message(client, userdata, msg):
     contents = msg.payload.decode("utf-8")
     if 'work' in msg.topic:
         block_hash, difficulty = contents.split(',')
-        print('WORK: {}'.format(block_hash[0:10]+"..."))
+        print('WORK: {}'.format(block_hash))
         works[block_hash] = perf_counter()
     elif 'result' in msg.topic:
         block_hash, work, account = contents.split(',')
