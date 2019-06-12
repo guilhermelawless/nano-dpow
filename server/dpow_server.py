@@ -320,7 +320,7 @@ def main():
     app_blocks = None
     if not config.use_websocket:
         app_blocks = web.Application()
-        app_blocks.router.add_post('/', server.block_arrival_callback_handle)
+        app_blocks.router.add_post('/block/', server.block_arrival_callback_handle)
         handler_blocks = app_blocks.make_handler()
         coroutine_blocks = loop.create_server(handler_blocks, config.web_host, config.blocks_port)
         server_blocks = loop.run_until_complete(coroutine_blocks)
