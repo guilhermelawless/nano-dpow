@@ -4,7 +4,7 @@ from logging.handlers import WatchedFileHandler, TimedRotatingFileHandler
 
 def get_logger():
     logger = logging.getLogger("dpow")
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     log_file = "/tmp/dpow.txt"
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s@%(funcName)s:%(lineno)s", "%Y-%m-%d %H:%M:%S %z")
     handler = WatchedFileHandler(log_file)
