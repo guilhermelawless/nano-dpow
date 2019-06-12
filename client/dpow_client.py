@@ -180,7 +180,6 @@ class DpowClient(object):
                     print("Successfully reconnected")
                 except ConnectException as e:
                     print("Connection exception: {}".format(e))
-                    break
         await self.close()
 
 
