@@ -1,5 +1,7 @@
-hbmqtt
+uvloop
 aiohttp
 aioredis
-nanolib
+hbmqtt
 websockets
+requests
+nanolib

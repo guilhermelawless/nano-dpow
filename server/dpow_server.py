@@ -7,11 +7,13 @@ import json
 import datetime
 import hashlib
 import asyncio
+import uvloop
 from aiohttp import web
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 import nanolib
 
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
 config = DpowConfig()
 logger = get_logger()
