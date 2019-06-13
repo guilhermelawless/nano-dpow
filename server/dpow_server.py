@@ -3,7 +3,7 @@ from dpow import *
 config = DpowConfig() # takes a while to --help if this goes after imports
 
 import sys
-import json
+import ujson
 import datetime
 import hashlib
 import asyncio
@@ -74,7 +74,7 @@ class DpowServer(object):
         try:
             while 1:
                 stats = await self.database.all_statistics()
-                await self.mqtt.send("statistics", json.dumps(stats))
+                await self.mqtt.send("statistics", ujson.dumps(stats))
                 await asyncio.sleep(300)
         except Exception as e:
             if not e.args:
@@ -88,7 +88,7 @@ class DpowServer(object):
         # Get all fields for client account
         stats = await self.database.hash_getall(f"client:{account}")
         # Send feedback to client
-        await self.mqtt.send(f"client/{account}", json.dumps(stats))
+        await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
     async def client_callback_handle(self, topic, content):
         try:
@@ -190,9 +190,9 @@ class DpowServer(object):
 
     async def block_arrival_callback_handle(self, request):
         try:
-            data = await request.json()
+            data = await request.json(loads=ujson.loads)
             block_hash, account = data['hash'], data['account']
-            previous = json.loads(data['block'])['previous']
+            previous = ujson.loads(data['block'])['previous']
             await self.block_arrival_handle(block_hash, account, previous)
         except Exception as e:
             logger.error(f"Unable to process block: {e}")
@@ -200,7 +200,13 @@ class DpowServer(object):
 
     async def request_handle(self, request):
         try:
-            data = await request.json()
+            try:
+                data = await request.json(loads=ujson.loads)
+                if type(data) != dict:
+                    raise
+            except:
+                return web.json_response({"error": "Bad request (not json)"}, dumps=ujson.dumps)
+
             # logger.info(f"Request:\n{data}")
             if {'hash', 'user', 'api_key'} <= data.keys():
                 service, api_key = data['user'], data['api_key']
@@ -210,10 +216,10 @@ class DpowServer(object):
                 db_key = await self.database.hash_get(f"service:{service}", "api_key")
                 if db_key is None:
                     logger.info(f"Received request with non existing service {service}")
-                    return web.json_response({"error" : "User does not exist"})
+                    return web.json_response({"error" : "User does not exist"}, dumps=ujson.dumps)
                 elif not api_key == db_key:
                     logger.info(f"Received request with non existing api key {api_key} for service {service}")
-                    return web.json_response({"error" : "Incorrect api key"})
+                    return web.json_response({"error" : "Incorrect api key"}, dumps=ujson.dumps)
 
                 block_hash = data['hash']
                 account = data.get('account', None)
@@ -229,16 +235,16 @@ class DpowServer(object):
                         nanolib.validate_threshold(difficulty)
 
                 except nanolib.InvalidBlockHash:
-                    return web.json_response({"error" : "Invalid hash"})
+                    return web.json_response({"error" : "Invalid hash"}, dumps=ujson.dumps)
                 except nanolib.InvalidAccount:
-                    return web.json_response({"error" : "Invalid account"})
+                    return web.json_response({"error" : "Invalid account"}, dumps=ujson.dumps)
                 except ValueError:
-                    return web.json_response({"error" : "Invalid difficulty"})
+                    return web.json_response({"error" : "Invalid difficulty"}, dumps=ujson.dumps)
                 except nanolib.InvalidThreshold:
-                    return web.json_response({"error" : "Difficulty too low"})
+                    return web.json_response({"error" : "Difficulty too low"}, dumps=ujson.dumps)
 
                 if difficulty and to_multiplier(difficulty) > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                    return web.json_response({"error" : "Difficulty too high"})
+                    return web.json_response({"error" : "Difficulty too high"}, dumps=ujson.dumps)
 
 
                 #Check if hash in redis db, if so return work
@@ -276,7 +282,7 @@ class DpowServer(object):
                         work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
                     except asyncio.TimeoutError:
                         logger.warn(f"Timeout of {timeout} reached for {block_hash}")
-                        return web.json_response({"error" : "Timeout reached without work"})
+                        return web.json_response({"error" : "Timeout reached without work"}, dumps=ujson.dumps)
                     finally:
                         try:
                             future = self.work_futures.pop(block_hash)
@@ -292,14 +298,12 @@ class DpowServer(object):
                 asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
 
                 # If this is reached, work was obtained
-                return web.json_response({"work" : work})
+                return web.json_response({"work" : work}, dumps=ujson.dumps)
             else:
-                return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"})
-        except json.decoder.JSONDecodeError:
-            return web.json_response({"error": "Bad request (not json)"})
+                return web.json_response({"error" : "Incorrect submission. Required information: user, api_key, hash, account"}, dumps=ujson.dumps)
         except Exception as e:
             logger.critical(f"Unknown exception: {e}")
-            return web.json_response({"error" : f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}"})
+            return web.json_response({"error" : f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}"}, dumps=ujson.dumps)
 
 
 def main():

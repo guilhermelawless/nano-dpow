@@ -1,3 +1,4 @@
+ujson
 uvloop
 aiohttp
 aioredis
