@@ -15,7 +15,7 @@ loop = asyncio.get_event_loop()
 
 
 async def send_work_result(client, work_type, block_hash, work):
-    await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_1)
+    await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_0)
     print(f"SEND {block_hash[:10]}...")
 
 
@@ -96,7 +96,7 @@ class DpowClient(object):
             return False
 
         # Receive a heartbeat before continuing, this makes sure server is up
-        await self.client.subscribe([("heartbeat", QOS_1)])
+        await self.client.subscribe([("heartbeat", QOS_0)])
         try:
             print("Checking for server availability...", end=' ', flush=True)
             await self.client.deliver_message(timeout=2)
@@ -127,7 +127,7 @@ class DpowClient(object):
         await self.client.subscribe([
             (f"work/{desired_work}", QOS_0),
             (f"cancel/{desired_work}", QOS_1),
-            (f"client/{config.payout}", QOS_0)
+            (f"client/{config.payout}", QOS_1)
         ])
 
     async def close(self):
