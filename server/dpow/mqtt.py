@@ -29,7 +29,7 @@ class DpowMQTT(object):
 
     async def subscribe(self):
         await self.connection.subscribe([
-            ("result/#", QOS_1)
+            ("result/#", QOS_0)
         ])
 
     async def close(self):
@@ -76,7 +76,7 @@ class DpowMQTT(object):
         while 1:
             try:
                 if self.ok:
-                    await self.send("heartbeat", "", qos=QOS_1)
+                    await self.send("heartbeat", "", qos=QOS_0)
             except Exception as e:
                 self.ok = False
                 if not e.args:

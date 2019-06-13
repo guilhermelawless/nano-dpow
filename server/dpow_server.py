@@ -90,13 +90,14 @@ class DpowServer(object):
 
     async def client_callback_handle(self, topic, content):
         try:
+            # Content is expected as CSV block,work,client
+            block_hash, work, client = content.split(',')
+
             # We expect result/{work_type} as topic
             work_type = topic.split('/')[-1]
             if work_type not in ('precache', 'ondemand'):
-                logger.warn(f"Wrong topic? {topic} -> Extracted work_type {work_type}")
+                logger.error(f"Unexpected topic {topic} -> Extracted work_type {work_type}")
                 return
-            # Content is expected as CSV block,work,client
-            block_hash, work, client = content.split(',')
             # logger.info(f"Message {block_hash} {work} {client}")
         except Exception as e:
             # logger.warn(f"Could not parse message: {e}")
@@ -106,17 +107,17 @@ class DpowServer(object):
         # - Block is removed from DB once account frontier that contained it is updated
         # - Block corresponding value is WORK_PENDING if work is pending
         available = await self.database.get(f"block:{block_hash}")
-        if not available:
-            # logger.debug(f"Client {client} provided work for a removed or non-existing hash {block_hash}")
-            return
-        elif available != DpowServer.WORK_PENDING:
-            # logger.debug(f"Client {client} provided work for hash {block_hash} with existing work {available}")
+        if not available or available != DpowServer.WORK_PENDING:
             return
 
         try:
             nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
+            return
+
+        # Used as a lock - if value already existed, then some other client finished before
+        if not await self.database.insert_if_noexist_expire(f"block-lock:{block_hash}", '1', 5):
             return
 
         # Set Future result if in memory
@@ -169,7 +170,7 @@ class DpowServer(object):
                 # Incomplete work for new frontier
                 self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY),
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}")
+                self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -265,7 +266,7 @@ class DpowServer(object):
                     difficulty = difficulty_hex(difficulty or nanolib.work.WORK_THRESHOLD)
 
                     # Ask for work on demand
-                    await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_1)
+                    await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
 
                     # Wait on the work for some time
                     timeout = max(int(data.get('timeout', 5)), 1)

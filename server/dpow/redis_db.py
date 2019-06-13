@@ -54,6 +54,18 @@ class DpowRedis(object):
     async def insert_expire(self, key: str, value: str, seconds: int):
         return await self.pool.execute('setex', key, seconds, value)
 
+    async def insert_if_noexist(self, key: str, value: str):
+        """Returns True if the key was inserted, False if it was already there"""
+        key_set = await self.pool.execute('setnx', key, value)
+        return key_set == 1
+
+    async def insert_if_noexist_expire(self, key: str, value: str, seconds: int):
+        """Returns True if the key was inserted, False if it was already there"""
+        key_set = await self.pool.execute('setnx', key, value)
+        if key_set == 1:
+            await self.pool.execute('expire', key, seconds)
+        return key_set == 1
+
     async def delete(self, key: str):
         return await self.pool.execute('del', key)
 
@@ -64,10 +76,6 @@ class DpowRedis(object):
     async def exists(self, key: str):
         exists = await self.pool.execute('exists', key)
         return exists == 1
-
-    async def insert_if_noexist(self, key: str, value: str):
-        existed = await self.pool.execute('setnx', key, value)
-        return existed == 1
 
     async def increment(self, key: str):
         return await self.pool.execute('incr', key)
