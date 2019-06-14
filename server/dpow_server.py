@@ -158,7 +158,7 @@ class DpowServer(object):
                 return
             else:
                 should_precache = True
-        else:
+        elif previous != None:
             # Account is not registered - but maybe the previous block is there
             previous_exists = await self.database.exists(f"block:{previous}")
             if previous_exists:
@@ -183,19 +183,20 @@ class DpowServer(object):
 
     async def block_arrival_websocket_handle(self, data):
         try:
-            block_hash, account, previous = data['hash'], data['account'], data['previous']
+            # previous might not exist - open block
+            block_hash, account, previous = data['hash'], data['account'], data['block'].get('previous', None)
             await self.block_arrival_handle(block_hash, account, previous)
         except Exception as e:
-            logger.error(f"Unable to process block: {e}")
+            logger.error(f"Unable to process block: {e}\nData:\n{data}")
 
     async def block_arrival_callback_handle(self, request):
         try:
             data = await request.json(loads=ujson.loads)
-            block_hash, account = data['hash'], data['account']
-            previous = ujson.loads(data['block'])['previous']
+            # previous might not exist - open block
+            block_hash, account, previous = data['hash'], data['account'], ujson.loads(data['block']).get('previous', None)
             await self.block_arrival_handle(block_hash, account, previous)
         except Exception as e:
-            logger.error(f"Unable to process block: {e}")
+            logger.error(f"Unable to process block: {e}\nData:\n{data}")
         return web.Response()
 
     async def request_handle(self, request):
