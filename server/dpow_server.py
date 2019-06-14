@@ -29,7 +29,9 @@ class DpowServer(object):
     WORK_PENDING = "0"
     BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
     ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
+    DIFFICULTY_EXPIRY = 2*60
     MAX_DIFFICULTY_MULTIPLIER = 5.0
+    FORCE_ONDEMAND_THRESHOLD = 0.8 # <= 1
 
     def __init__(self):
         self.work_futures = dict()
@@ -106,8 +108,10 @@ class DpowServer(object):
         if not available or available != DpowServer.WORK_PENDING:
             return
 
+        difficulty = await self.database.get(f"block-difficulty:{block_hash}")
+
         try:
-            nanolib.validate_work(block_hash, work, difficulty=nanolib.work.WORK_DIFFICULTY)
+            nanolib.validate_work(block_hash, work, difficulty = difficulty or nanolib.work.WORK_DIFFICULTY)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
@@ -230,7 +234,6 @@ class DpowServer(object):
                                 account = account.replace("xrb_", "nano_")
                                 nanolib.validate_account_id(account)
                             if difficulty:
-                                difficulty = int('0x'+difficulty, 16)
                                 nanolib.validate_difficulty(difficulty)
                         except nanolib.InvalidBlockHash:
                             error = "Invalid hash"
@@ -241,8 +244,10 @@ class DpowServer(object):
                         except nanolib.InvalidDifficulty:
                             error = "Difficulty too low"
 
-                        if not error and difficulty and nanolib.work.derive_work_multiplier(difficulty) > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                            error = "Difficulty too high"
+                        if not error and difficulty:
+                            difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
+                            if difficulty_multiplier > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
+                                error = f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )"
 
                     if not error:
                         #Check if hash in redis db, if so return work
@@ -252,13 +257,18 @@ class DpowServer(object):
                             # Set incomplete work
                             await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY)
 
-                        work_type = "precache"
+                        work_type = "ondemand"
+                        if work and work != DpowServer.WORK_PENDING:
+                            work_type = "precache"
+                            if difficulty:
+                                precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
+                                if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
+                                    # Force ondemand since the precache difficulty is not close enough to requested difficulty
+                                    work_type = "ondemand"
+                                    await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
+                                    logger.warn(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
 
-                        # TODO also check if precached difficulty is close enough to the requested difficulty (Dynamic PoW)
-                        if not work or work == DpowServer.WORK_PENDING:
-                            #Request on demand work
-                            work_type = "ondemand"
-
+                        if work_type == "ondemand":
                             # If account is not provided, service runs a risk of the next work not being precached for
                             # There is still the possibility we recognize the need to precache based on the previous block
                             if account:
@@ -267,6 +277,10 @@ class DpowServer(object):
 
                             # Create a Future to be set with work when complete
                             self.work_futures[block_hash] = loop.create_future()
+
+                            # Set difficulty in DB if provided
+                            if difficulty:
+                                await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
 
                             # Base difficulty if not provided
                             difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
