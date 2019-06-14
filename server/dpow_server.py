@@ -25,14 +25,6 @@ def hash_key(x: str):
     return m.digest()
 
 
-def difficulty_hex(t: int) -> str:
-    return hex(t)[2:]
-
-
-def to_multiplier(difficulty: int, base_difficulty: int = nanolib.work.WORK_THRESHOLD) -> float:
-    return float((1 << 64) - base_difficulty) / float((1 << 64) - difficulty)
-
-
 class DpowServer(object):
     WORK_PENDING = "0"
     BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
@@ -115,7 +107,7 @@ class DpowServer(object):
             return
 
         try:
-            nanolib.validate_work(block_hash, work, threshold=nanolib.work.WORK_THRESHOLD)
+            nanolib.validate_work(block_hash, work, difficulty=nanolib.work.WORK_DIFFICULTY)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
@@ -174,7 +166,7 @@ class DpowServer(object):
                 # Incomplete work for new frontier
                 self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY),
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{difficulty_hex(nanolib.work.WORK_THRESHOLD)}", qos=QOS_0)
+                self.mqtt.send("work/precache", f"{block_hash},{nanolib.work.WORK_DIFFICULTY}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -239,17 +231,17 @@ class DpowServer(object):
                                 nanolib.validate_account_id(account)
                             if difficulty:
                                 difficulty = int('0x'+difficulty, 16)
-                                nanolib.validate_threshold(difficulty)
+                                nanolib.validate_difficulty(difficulty)
                         except nanolib.InvalidBlockHash:
                             error = "Invalid hash"
                         except nanolib.InvalidAccount:
                             error = "Invalid account"
                         except ValueError:
                             error = "Invalid difficulty"
-                        except nanolib.InvalidThreshold:
+                        except nanolib.InvalidDifficulty:
                             error = "Difficulty too low"
 
-                        if not error and difficulty and to_multiplier(difficulty) > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
+                        if not error and difficulty and nanolib.work.derive_work_multiplier(difficulty) > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
                             error = "Difficulty too high"
 
                     if not error:
@@ -277,7 +269,7 @@ class DpowServer(object):
                             self.work_futures[block_hash] = loop.create_future()
 
                             # Base difficulty if not provided
-                            difficulty = difficulty_hex(difficulty or nanolib.work.WORK_THRESHOLD)
+                            difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
 
                             # Ask for work on demand
                             await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
