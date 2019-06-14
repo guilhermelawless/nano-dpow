@@ -82,11 +82,13 @@ class DpowServer(object):
                 return
             logger.error(f"Statistics update loop failure: {e}")
 
-    async def client_update(self, account: str, work_type: str):
+    async def client_update(self, account: str, work_type: str, block_rewarded: str):
         # Increment work type
         await self.database.hash_increment(f"client:{account}", work_type, by=1)
         # Get all fields for client account
         stats = await self.database.hash_getall(f"client:{account}")
+        # Add the block hash that got rewarded
+        stats['block_rewarded'] = block_rewarded
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
@@ -134,17 +136,17 @@ class DpowServer(object):
 
         # Account information and DB update
         await asyncio.gather(
-            self.client_update(client, work_type),
+            self.client_update(client, work_type, block_hash),
             self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY)
         )
 
         # As we've got work now send cancel command to clients and do a stats update
         # No need to wait on this here
-        asyncio.ensure_future(asyncio.gather(
+        await asyncio.gather(
             self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1),
             self.database.increment(f"stats:{work_type}"),
             self.database.set_add(f"clients", client)
-        ))
+        )
 
     async def block_arrival_handle(self, block_hash, account, previous):
         should_precache = config.debug
