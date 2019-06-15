@@ -22,7 +22,7 @@ def on_message(client, userdata, msg):
     elif 'result' in msg.topic:
         block_hash, work, account = contents.split(',')
         if block_hash in works:
-            print('RESULT: {} after {}ms'.format(block_hash[0:10]+"...", int(1000*(perf_counter() - works[block_hash]))))
+            print('RESULT: {} work {}... after {}ms'.format(block_hash[0:10]+"...", work, int(1000*(perf_counter() - works[block_hash]))))
         else:
             print('WARN: RESULT: {} received before seen'.format(block_hash[0:10]+"..."))
     elif 'cancel' in msg.topic:
@@ -41,7 +41,7 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-client.username_pw_set('client', password='client')
+client.username_pw_set('dpowinterface', password='wGTLbH4PcYniENL5ffHvck')
 client.connect(host, 1883)
 
 client.subscribe("work/#")
