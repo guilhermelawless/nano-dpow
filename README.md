@@ -10,7 +10,20 @@ Read more on the [client documentation](client/README.md) page.
 
 ## Using DPoW for your service
 
-Please contact us on The Nano Center [discord server](https://discord.nanocenter.org).
+Send a `POST` request to `https://dpow.nanocenter.org/service/` with the following JSON body:
+
+```json
+{
+  "hash": "5F3609C2C042F76FD7FCC1D7A3E762BB940A9283BDE3C95EB1DF10BC8343680C", // block hash
+  "user": "myuser", // api user
+  "api_key": "yourlonghash", // api key
+  "account": "nano_1ninja7rh37ehfp9utkor5ixmxyg8kme8fnzc4zty145ibch8kf5jwpnzr3r", // optional: helps us do precache, when a block arrives we check its account. If you don't give the account we can still go by "previous" but might miss a block and ruin that
+  "timeout": 5, // optional: defaults to 5, rounded to integer
+  "difficulty": "" // optional: hex string without 0x
+}
+```
+
+Please contact us on The Nano Center [discord server](https://discord.nanocenter.org) for help.
 
 ## Running your own server
 
