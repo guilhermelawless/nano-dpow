@@ -2,6 +2,7 @@
 from dpow import *
 config = DpowConfig() # takes a while to --help if this goes after imports
 
+import traceback
 import sys
 import ujson
 import datetime
@@ -98,7 +99,7 @@ class DpowServer(object):
                 logger.error(f"Unexpected topic {topic} -> Extracted work_type {work_type}")
                 return
             # logger.info(f"Message {block_hash} {work} {client}")
-        except Exception as e:
+        except Exception:
             # logger.warn(f"Could not parse message: {e}")
             return
 
@@ -200,124 +201,114 @@ class DpowServer(object):
         return web.Response()
 
     async def service_handler(self, data):
-        error = None
-        timeout = False
-        response = {}
+        if not {'hash', 'user', 'api_key'} <= data.keys():
+            raise InvalidRequest("Incorrect submission. Required information: user, api_key, hash")
+
+        service, api_key = data['user'], data['api_key']
+        api_key = hash_key(api_key)
+
+        #Verify API Key
+        db_key = await self.database.hash_get(f"service:{service}", "api_key")
+        if db_key is None:
+            logger.info(f"Received request with non existing service {service}")
+            raise InvalidRequest("Invalid credentials")
+        elif not api_key == db_key:
+            logger.info(f"Received request with non existing api key {api_key} for service {service}")
+            raise InvalidRequest("Invalid credentials")
+
+        block_hash = data['hash']
+        account = data.get('account', None)
+        difficulty = data.get('difficulty', None)
+
         try:
-            if {'hash', 'user', 'api_key'} <= data.keys():
-                service, api_key = data['user'], data['api_key']
-                api_key = hash_key(api_key)
+            block_hash = nanolib.validate_block_hash(block_hash)
+            if account:
+                account = account.replace("xrb_", "nano_")
+                nanolib.validate_account_id(account)
+            if difficulty:
+                nanolib.validate_difficulty(difficulty)
+        except nanolib.InvalidBlockHash:
+            raise InvalidRequest("Invalid hash")
+        except nanolib.InvalidAccount:
+            raise InvalidRequest("Invalid account")
+        except ValueError:
+            raise InvalidRequest("Invalid difficulty")
+        except nanolib.InvalidDifficulty:
+            raise InvalidRequest("Difficulty too low")
 
-                #Verify API Key
-                db_key = await self.database.hash_get(f"service:{service}", "api_key")
-                if db_key is None:
-                    logger.info(f"Received request with non existing service {service}")
-                    error = "Invalid credentials"
-                elif not api_key == db_key:
-                    logger.info(f"Received request with non existing api key {api_key} for service {service}")
-                    error = "Invalid credentials"
+        if difficulty:
+            difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
+            if difficulty_multiplier > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
+                raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
 
-                if not error:
-                    block_hash = data['hash']
-                    account = data.get('account', None)
-                    difficulty = data.get('difficulty', None)
+        #Check if hash in redis db, if so return work
+        work = await self.database.get(f"block:{block_hash}")
 
-                    try:
-                        block_hash = nanolib.validate_block_hash(block_hash)
-                        if account:
-                            account = account.replace("xrb_", "nano_")
-                            nanolib.validate_account_id(account)
-                        if difficulty:
-                            nanolib.validate_difficulty(difficulty)
-                    except nanolib.InvalidBlockHash:
-                        error = "Invalid hash"
-                    except nanolib.InvalidAccount:
-                        error = "Invalid account"
-                    except ValueError:
-                        error = "Invalid difficulty"
-                    except nanolib.InvalidDifficulty:
-                        error = "Difficulty too low"
+        if work is None:
+            # Set incomplete work
+            await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY)
 
-                    if not error and difficulty:
-                        difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
-                        if difficulty_multiplier > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                            error = f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )"
-
-                if not error:
-                    #Check if hash in redis db, if so return work
-                    work = await self.database.get(f"block:{block_hash}")
-
-                    if work is None:
-                        # Set incomplete work
-                        await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY)
-
+        work_type = "ondemand"
+        if work and work != DpowServer.WORK_PENDING:
+            work_type = "precache"
+            if difficulty:
+                precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
+                if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
+                    # Force ondemand since the precache difficulty is not close enough to requested difficulty
                     work_type = "ondemand"
-                    if work and work != DpowServer.WORK_PENDING:
-                        work_type = "precache"
-                        if difficulty:
-                            precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
-                            if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
-                                # Force ondemand since the precache difficulty is not close enough to requested difficulty
-                                work_type = "ondemand"
-                                await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
-                                logger.warn(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
+                    await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
+                    logger.warn(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
 
-                    if work_type == "ondemand":
-                        # If account is not provided, service runs a risk of the next work not being precached for
-                        # There is still the possibility we recognize the need to precache based on the previous block
-                        if account:
-                            # Update account frontier
-                            asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
+        if work_type == "ondemand":
+            # If account is not provided, service runs a risk of the next work not being precached for
+            # There is still the possibility we recognize the need to precache based on the previous block
+            if account:
+                # Update account frontier
+                asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
 
-                        # Create a Future to be set with work when complete
-                        self.work_futures[block_hash] = loop.create_future()
+            # Create a Future to be set with work when complete
+            self.work_futures[block_hash] = loop.create_future()
 
-                        # Set difficulty in DB if provided
-                        if difficulty:
-                            await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
+            # Set difficulty in DB if provided
+            if difficulty:
+                await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
 
-                        # Base difficulty if not provided
-                        difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
+            # Base difficulty if not provided
+            difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
 
-                        # Ask for work on demand
-                        await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
+            # Ask for work on demand
+            await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
 
-                        # Wait on the work for some time
-                        timeout = max(int(data.get('timeout', 5)), 1)
-                        try:
-                            work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
-                        except asyncio.TimeoutError:
-                            logger.warn(f"Timeout of {timeout} reached for {block_hash}")
-                            error = "Timeout reached without work"
-                            timeout = True
-                        finally:
-                            try:
-                                future = self.work_futures.pop(block_hash)
-                                future.cancel()
-                            except:
-                                pass
-                        # logger.info(f"Work received: {work}")
-                    else:
-                        # logger.info(f"Work in cache: {work}")
-                        pass
+            timeout = data.get('timeout', 5)
+            try:
+                timeout = int(timeout)
+                if timeout < 1 or timeout > 30:
+                    raise
+            except:
+                raise InvalidRequest("Timeout must be an integer between 1 and 30")
 
-                    # Increase the work type counter for this service
-                    asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
-            else:
-                error = "Incorrect submission. Required information: user, api_key, hash"
-        except Exception as e:
-            logger.critical(f"Unknown exception: {e}")
-            if not error:
-                error = f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}"
+            try:
+                work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warn(f"Timeout of {timeout} reached for {block_hash}")
+                raise RequestTimeout()
+            finally:
+                try:
+                    future = self.work_futures.pop(block_hash)
+                    future.cancel()
+                except Exception:
+                    pass
+            # logger.info(f"Work received: {work}")
+        else:
+            # logger.info(f"Work in cache: {work}")
+            pass
 
+        # Increase the work type counter for this service
+        asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
+
+        response = {'work': work}
         if 'id' in data:
             response['id'] = data['id']
-        if error:
-            response['error'] = error
-            if timeout:
-                response['timeout'] = timeout
-        else:
-            response['work'] = work
 
         return response
 
@@ -332,16 +323,21 @@ class DpowServer(object):
                     try:
                         data = ujson.loads(msg.data)
                         if type(data) != dict:
-                            raise
+                            raise InvalidRequest("Bad request (not json)")
                         response = await self.service_handler(data)
-                    except:
-                        response = dict(error="Bad request (not json)")
-                    await ws.send_json(response)
+                    except InvalidRequest as e:
+                        response = dict(error=e.reason)
+                    except RequestTimeout:
+                        response = dict(error="Timeout reached without work", timeout=True)
+                    except Exception as e:
+                        response = dict(error=f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}")
+                        logger.critical(traceback.format_exc())
+                    finally:
+                        await ws.send_json(response)
                 elif msg.type == WSMsgType.ERROR:
                     # logger.error(f"ws connection closed with exception {ws.exception()}")
                     pass
-        except Exception as e:
-            logger.error(f"Unknown exception {e}")
+        except Exception:
             pass
 
         # logger.info('websocket connection closed')
@@ -352,11 +348,17 @@ class DpowServer(object):
         try:
             data = await request.json(loads=ujson.loads)
             if type(data) != dict:
-                raise
+                raise InvalidRequest("Bad request (not json)")
             response = await self.service_handler(data)
-        except:
-            response = dict(error="Bad request (not json)")
-        return web.json_response(response, dumps=ujson.dumps)
+        except InvalidRequest as e:
+            response = dict(error=e.reason)
+        except RequestTimeout:
+            response = dict(error="Timeout reached without work", timeout=True)
+        except Exception as e:
+            response = dict(error=f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}")
+            logger.critical(traceback.format_exc())
+        finally:
+            return web.json_response(response, dumps=ujson.dumps)
 
 
 def main():

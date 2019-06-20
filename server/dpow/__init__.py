@@ -1,3 +1,4 @@
+from .exceptions import *
 from .config import *
 from .logger import *
 from .mqtt import *
