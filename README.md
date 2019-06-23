@@ -2,7 +2,7 @@
 
 Welcome to the Distributed Proof of Work (DPoW) service hub. The DPoW system allows any user to support the Nano community services by computing the required proof of work for transactions.
 
-This has helped a several community-supported projects, such as faucets, tipping bots, and wallets. As a reward for helping, clients get occasional Nano payouts.
+DPoW has helped reduce operating costs of community projects, such as faucets, tipping bots, and wallets. As a reward for helping, clients get occasional Nano payouts.
 
 ## Running a work client
 
@@ -10,7 +10,9 @@ Read more on the [client documentation](client/README.md) page.
 
 ## Using DPoW for your service
 
-Please contact us on The Nano Center [discord server](https://discord.nanocenter.org).
+Read more on the [service documentation](service/README.md) page.
+
+Please contact us on The Nano Center [discord server](https://discord.nanocenter.org) for further assistance.
 
 ## Running your own server
 
