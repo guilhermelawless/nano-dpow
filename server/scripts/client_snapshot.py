@@ -4,6 +4,12 @@ import redis
 import json
 from collections import defaultdict
 from datetime import datetime
+import re
+
+def nano_valid_address(string):
+    p = re.compile('^(nano|xrb)_[13]{1}[13456789abcdefghijkmnopqrstuwxyz]{59}$')
+    return p.match(string)
+
 
 r = redis.StrictRedis(host="localhost", port=6379)
 
@@ -14,7 +20,12 @@ snapshot = defaultdict(lambda: {"precache": 0, "ondemand": 0})
 payouts = defaultdict(lambda: {"precache": 0, "ondemand": 0})
 
 for client in clients:
+    if not nano_valid_address(client):
+        print("!Skipping client '{}' as it is an invalid Nano account!\n\n".format(client))
+        continue
     client_info = r.hgetall(f"client:{client}")
+    if not client_info:
+        continue
     print(client, client_info)
 
     for work in ('precache', 'ondemand'):
