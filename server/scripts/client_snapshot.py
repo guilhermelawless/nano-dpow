@@ -23,10 +23,14 @@ for client in clients:
 			amount = int(client_info[work_enc])
 			snapshot_enc = str.encode("snapshot_"+work, "utf-8")
 			snapshot_amount = int(client_info.get(snapshot_enc, 0))
-			snapshot[client][work] += snapshot_amount
 			payout_amount = amount - snapshot_amount
+			if payout_amount < 50:
+				print(f"Skipping {work}, only did {payout_amount} since last snapshot.")
+				continue
+			snapshot[client][work] += snapshot_amount
 			payouts[client][work] += payout_amount
 			r.hset(f"client:{client}", snapshot_enc.decode("utf-8"), amount)
+	print("\n")
 
 now = f"{datetime.now():%Y-%m-%d_%H-%M-%S}"
 
