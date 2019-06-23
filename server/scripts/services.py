@@ -5,7 +5,7 @@ import argparse
 import hashlib
 from getpass import getpass
 
-r = redis.Redis(host="localhost", port=6379)
+r = redis.StrictRedis(host="localhost", port=6379)
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group(required=True)
