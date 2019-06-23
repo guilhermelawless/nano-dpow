@@ -132,16 +132,13 @@ class DpowServer(object):
         except Exception as e:
             logger.error(f"Unknown error when setting work future: {e}")
 
+        # As we've got work now send cancel command to clients and do a stats update
+        await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1)
+
         # Account information and DB update
         await asyncio.gather(
             self.client_update(client, work_type, block_hash),
-            self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY)
-        )
-
-        # As we've got work now send cancel command to clients and do a stats update
-        # No need to wait on this here
-        await asyncio.gather(
-            self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1),
+            self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY),
             self.database.increment(f"stats:{work_type}"),
             self.database.set_add(f"clients", client)
         )
