@@ -49,6 +49,7 @@ def interactive_add():
         public = input("Public information? (Y/N): ")
     display = input("Display name: ")
     website = input("Website: ")
+    api_key = None
     while not api_key:
         api_key = getpass("API Key (hidden, will be hashed): ")
 
