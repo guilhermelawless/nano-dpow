@@ -392,6 +392,15 @@ def main():
     coroutine_ws = loop.create_server(handler_ws, "0.0.0.0", 5035)
     server_ws = loop.run_until_complete(coroutine_ws)
 
+    # endpoint for checking if server is up
+    app_upcheck = web.Application()
+    upcheck_handler = lambda request: web.Response(text="up")
+    app_upcheck.router.add_get('/upcheck/', upcheck_handler)
+    handler_upcheck = app_upcheck.make_handler()
+    coroutine_upcheck = loop.create_server(handler_upcheck, "0.0.0.0", 5031)
+    server_upcheck = loop.run_until_complete(coroutine_upcheck)
+
+
     # endpoint for service requests
     app_services = web.Application()
     app_services.on_startup.append(startup)
@@ -408,8 +417,10 @@ def main():
         if app_blocks:
             server_blocks.close()
             loop.run_until_complete(handler_blocks.shutdown(60.0))
-            server_ws.close()
-            loop.run_until_complete(handler_ws.shutdown(60.0))
+        server_ws.close()
+        loop.run_until_complete(handler_ws.shutdown(60.0))
+        server_upcheck.close()
+        loop.run_until_complete(handler_upcheck.shutdown(60.0))
         loop.close()
 
 if __name__ == "__main__":
