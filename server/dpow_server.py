@@ -39,7 +39,7 @@ class DpowServer(object):
         self.database = DpowRedis("redis://localhost", loop)
         self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
         if config.use_websocket:
-            self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler)
+            self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler, logger=logger)
         else:
             self.websocket = None
 
@@ -48,12 +48,16 @@ class DpowServer(object):
             self.database.setup(),
             self.mqtt.setup(),
         )
+        if self.websocket:
+            await self.websocket.setup()
 
     async def close(self):
         await asyncio.gather(
             self.database.close(),
             self.mqtt.close()
         )
+        if self.websocket:
+            await self.websocket.close()
 
     async def loop(self):
         aws = [
@@ -370,6 +374,7 @@ def main():
             asyncio.ensure_future(server.loop(), loop=loop)
         except Exception as e:
             logger.critical(e)
+            await server.close()
             sys.exit(1)
 
     async def cleanup(app):
