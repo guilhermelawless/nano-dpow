@@ -83,7 +83,7 @@ class DpowClient(object):
 
     def handle_stats(self, message):
         try:
-            logger.info("STATS", json.loads(message.data))
+            logger.info(f"STATS {json.loads(message.data)}")
         except Exception as e:
             logger.warn(f"Could not parse stats message {message}:\n{e}")
 
@@ -193,7 +193,7 @@ class DpowClient(object):
                     await self.client.reconnect(cleansession=False)
                     logger.info("Successfully reconnected")
                 except ConnectException as e:
-                    logger.error("Connection exception: {}".format(e))
+                    logger.error(f"Connection exception: {e}")
         await self.close()
 
 
