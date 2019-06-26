@@ -419,16 +419,19 @@ def main():
         else:
             web.run_app(app_services, host="0.0.0.0", port=5030)
     except KeyboardInterrupt:
-        pass
+        loop.stop()
     finally:
-        if app_blocks:
-            server_blocks.close()
-            loop.run_until_complete(handler_blocks.shutdown(60.0))
-        server_ws.close()
-        loop.run_until_complete(handler_ws.shutdown(60.0))
-        server_upcheck.close()
-        loop.run_until_complete(handler_upcheck.shutdown(60.0))
-        loop.close()
+        if not loop.is_closed():
+            if app_blocks:
+                server_blocks.close()
+                loop.run_until_complete(handler_blocks.shutdown(5.0))
+            server_ws.close()
+            loop.run_until_complete(handler_ws.shutdown(5.0))
+            server_upcheck.close()
+            loop.run_until_complete(handler_upcheck.shutdown(5.0))
+            remaining_tasks = asyncio.Task.all_tasks()
+            loop.run_until_complete(asyncio.wait_for(asyncio.gather(*remaining_tasks), timeout=10))
+            loop.close()
 
 if __name__ == "__main__":
     main()
