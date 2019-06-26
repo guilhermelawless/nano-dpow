@@ -6,7 +6,7 @@ These steps will guide you on how to setup a new work client. The nano-work-serv
 
 ### Requirements
 
-1. Python 3.6.7 or higher.
+1. [Python](https://www.python.org/) 3.6.7 or higher.
 
 ### Installation
 
@@ -16,30 +16,27 @@ cd nano-dpow/client
 pip3 install --user -r requirements.txt
 ```
 
+On Windows it might be `pip` and not `pip3`.
+
 ## Running
 
-### Work Server
+You need to find out what your GPU vendor/device numbers are if you're going to be using a GPU. Usually it will be either `0:0`, `0:1`, or `1:0`, depending on how many you have (including integrated graphics).
 
-You need to find out what your GPU vendor/device numbers are if you're going to be using a GPU.
+### Linux
 
-#### Linux
+1. Check `./bin/linux/nano-work-server --help` for information on how to select your GPU (or CPU).
+2. Run the work server:
 
-```bash
-./bin/linux/nano-work-server --gpu 0:0 -l 127.0.0.1:7000
-```
+  ```bash
+  ./bin/linux/nano-work-server --gpu 0:0 -l 127.0.0.1:7000
+  ```
+3. Check the client configuration options with `python3 dpow_client.py --help`
+4. Run the client:
+  ```bash
+  python3 dpow_client.py --payout YOUR_NANO_ADDRESS --work {ondemand,precache,any}
+  ```
 
-Check `./bin/linux/nano-work-server --help` for information on how to select your GPU (or CPU)
+### Windows
 
-#### Windows (experimental)
-
-Navigate to `bin\windows` on your file explorer and double-click the file `run_work_server.bat`, it should leave a terminal window running in the foreground, which you can minimize but not close (sorry!). Edit the file to change the GPU that will be used.
-
-Alternatively you can run `bin\windows\nano-work-server.exe` with the usual options (see above in the instructions for Linux).
-
-### DPoW Client
-
-Check the possible options with `--help`, and run as follows (choose one of the work types only):
-
-```bash
-python3 dpow_client.py --payout YOUR_NANO_ADDRESS --work {ondemand,precache,any}
-```
+1. Edit th file `run_windows.bat` with your desired configuration (including the work-server GPU config).
+2. Double-click the same file, which should eventually open two terminals. You must leave them running in the foreground. You can minimize but not close them (sorry!).
