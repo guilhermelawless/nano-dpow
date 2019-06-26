@@ -38,5 +38,5 @@ You need to find out what your GPU vendor/device numbers are if you're going to 
 
 ### Windows
 
-1. Edit th file `run_windows.bat` with your desired configuration (including the work-server GPU config).
+1. Edit the file `run_windows.bat` with your desired configuration (including the work-server GPU config).
 2. Double-click the same file, which should eventually open two terminals. You must leave them running in the foreground. You can minimize but not close them (sorry!).

@@ -11,7 +11,7 @@
 | cancel/precache | Publish           | Subscribe       |
 | cancel/ondemand | Publish           | Subscribe       |
 | client/`address`| Publish           | Subscribe       |
-| hearbeat        | Publish           | Subscribe       |
+| heartbeat       | Publish           | Subscribe       |
 | statistics      | Publish           | Subscribe       |
 
 ## Topics

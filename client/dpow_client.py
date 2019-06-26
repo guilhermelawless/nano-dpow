@@ -174,7 +174,7 @@ class DpowClient(object):
                     self.server_online = True
             except Exception as e:
                 if self.running:
-                    logger.error(f"Hearbeat check failure: {e}")
+                    logger.error(f"Heartbeat check failure: {e}")
 
     @asyncio.coroutine
     async def message_loop(self):

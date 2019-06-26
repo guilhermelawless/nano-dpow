@@ -82,6 +82,6 @@ class DpowMQTT(object):
                 if not e.args:
                     self.logger.debug("Empty exception, returned silently")
                     return
-                self.logger.error(f"Hearbeat failure: {e}")
+                self.logger.error(f"Heartbeat failure: {e}")
             finally:
                 await asyncio.sleep(1)
