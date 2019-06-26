@@ -5,4 +5,5 @@ aioredis
 hbmqtt
 websockets
 requests
+asyncio-throttle
 nanolib
