@@ -38,7 +38,7 @@ class DpowServer(object):
 
     def __init__(self):
         self.work_futures = dict()
-        self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=DpowServer.MAX_SERVICE_REQUESTS_PER_SECOND))
+        self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=DpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
         self.database = DpowRedis("redis://localhost", loop)
         self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
         if config.use_websocket:
