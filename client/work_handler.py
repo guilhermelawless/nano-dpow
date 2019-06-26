@@ -3,6 +3,7 @@ import requests
 import aiohttp
 import aiohttp_requests
 import json
+import logging
 from random import choice
 
 
@@ -34,7 +35,7 @@ class WorkQueue(asyncio.Queue):
 
 
 class WorkHandler(object):
-    def __init__(self, worker_uri, mqtt_client, callback, error_callback):
+    def __init__(self, worker_uri, mqtt_client, callback, error_callback, logger=logging):
         self.mqtt_client = mqtt_client
         self.callback = callback
         self.error_callback = error_callback
@@ -42,6 +43,7 @@ class WorkHandler(object):
         self.work_queue = WorkQueue()
         self.work_ongoing = set()
         self.session = None
+        self.logger = logger
 
     async def start(self):
         self.session = aiohttp.ClientSession(json_serialize=json.dumps, conn_timeout=1)
@@ -57,7 +59,7 @@ class WorkHandler(object):
     async def queue_cancel(self, block_hash: str):
         # If it's queued up work, simply remove it
         if self.work_queue.remove(block_hash):
-            print(f"REMOVE {block_hash[:10]}...")
+            self.logger.info(f"REMOVE {block_hash[:10]}...")
 
         # Can also be work that is currently being done
         elif block_hash in self.work_ongoing:
@@ -69,7 +71,7 @@ class WorkHandler(object):
                     "hash": block_hash
                 })
             except Exception as e:
-                print(f"Work handler queue_cancel error: {e}")
+                self.logger.error(f"Work handler queue_cancel error: {e}")
 
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
@@ -77,7 +79,7 @@ class WorkHandler(object):
             try:
                 await self.work_queue.put((block_hash, difficulty, work_type))
             except Exception as e:
-                print(f"Work handler queue_work error: {e}")
+                self.logger.error(f"Work handler queue_work error: {e}")
                 self.work_queue.remove(item)
                 await self.error_callback()
 
@@ -86,7 +88,7 @@ class WorkHandler(object):
         while 1:
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
-                print(f"WORK {block_hash[:10]}...")
+                self.logger.info(f"WORK {block_hash[:10]}...")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
                     "action": "work_generate",
@@ -97,7 +99,7 @@ class WorkHandler(object):
                     self.work_ongoing.remove(block_hash)
                 except:
                     # Removed by queue_cancel, no longer needed
-                    print(f"CANCEL {block_hash[:10]}...")
+                    self.logger.info(f"CANCEL {block_hash[:10]}...")
                     continue
                 res_js = await res.json()
                 if 'work' in res_js:
@@ -105,7 +107,7 @@ class WorkHandler(object):
                 else:
                     error = res_js.get('error', None)
                     if error:
-                        print(f"Unexpected reply from work server: {error}")
+                        self.logger.error(f"Unexpected reply from work server: {error}")
             except Exception as e:
-                print(f"Work handler loop error: {e}")
+                self.logger.error(f"Work handler loop error: {e}")
                 await asyncio.sleep(5)
