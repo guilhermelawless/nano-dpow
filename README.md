@@ -4,6 +4,10 @@ Welcome to the Distributed Proof of Work (DPoW) service hub. The DPoW system all
 
 DPoW has helped reduce operating costs of community projects, such as faucets, tipping bots, and wallets. As a reward for helping, clients get occasional Nano payouts.
 
+## Documentation
+
+You can read more about the DPoW [message specification](docs/specification.md).
+
 ## Running a work client
 
 Read more on the [client documentation](client/README.md) page.
