@@ -22,29 +22,31 @@ class DpowRedis(object):
         await self.pool.wait_closed()
 
     async def all_statistics(self):
-        precache = await self.get("stats:precache")
-        on_demand = await self.get("stats:ondemand")
+        precache_total = await self.get("stats:precache")
+        on_demand_total = await self.get("stats:ondemand")
 
         public_services = list()
         private_services = {"count": 0, "precache": 0, "ondemand": 0}
         services = await self.set_members("services")
         for service in services:
             info = await self.hash_getmany(f"service:{service}", "public", "display", "website", "precache", "ondemand")
-            if info["public"] == SERVICE_PUBLIC:
-                del info["public"]
+            info["precache"] = int(info["precache"])
+            info["ondemand"] = int(info["ondemand"])
+            is_public = info.pop("public") == SERVICE_PUBLIC
+            if is_public:
                 public_services.append(info)
             else:
                 private_services["count"] += 1
-                private_services["precache"] += int(info["precache"])
-                private_services["ondemand"] += int(info["ondemand"])
+                private_services["precache"] += info["precache"]
+                private_services["ondemand"] += info["ondemand"]
         return dict(
             services = {
                 "public": public_services,
                 "private": private_services
             },
             work = {
-                "precache": precache,
-                "ondemand": on_demand
+                "precache": int(precache_total),
+                "ondemand": int(on_demand_total)
             }
         )
 

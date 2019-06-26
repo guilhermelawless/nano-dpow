@@ -87,6 +87,8 @@ class DpowServer(object):
         await self.database.hash_increment(f"client:{account}", work_type, by=1)
         # Get all fields for client account
         stats = await self.database.hash_getall(f"client:{account}")
+        # Convert fields to integer
+        stats = {k: int(v) for k,v in stats.items()}
         # Add the block hash that got rewarded
         stats['block_rewarded'] = block_rewarded
         # Send feedback to client
