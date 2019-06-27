@@ -25,8 +25,8 @@ In the event that you don't get a reply within 48 hours, please contact us on Th
 
 You can request work using `POST` requests or websocket connections. We recommend using websockets, as some operating systems will perform an SSL handshake for each `POST` request, adding latency (at least 200 millisseconds).
 
-- `POST` requests should be sent to `https://dpow.nanocenter.org/service/`. An [example](service/random_hash_request.py) is provided.
-- Websocket connections should target `wss://dpow.nanocenter.org/service_ws/`. An [example](service/websocket_test.py) is provided. You should try to keep the websocket connection alive.
+- `POST` requests should be sent to `https://dpow.nanocenter.org/service/`. An [example](random_hash_request.py) is provided.
+- Websocket connections should target `wss://dpow.nanocenter.org/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
 
 ### Request
 
@@ -37,7 +37,7 @@ A request should be json-encoded and contain the following information:
   "user": "your_given_user",
   "api_key": "your_given_api_key",
   "hash": "nano_block_hash",
-  "account": "valid_nano_account",
+  "account": "nano_valid_account",
   "id": 100,
   "timeout": 5,
   "difficulty": "ffffffc000000000"
