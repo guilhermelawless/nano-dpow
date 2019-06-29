@@ -13,6 +13,9 @@ class WorkQueue(asyncio.Queue):
     def _init(self, maxsize):
         self._queue = dict()
 
+    def find_remove(self, block_hash):
+        return self._queue.pop(block_hash)
+
     def remove(self, block_hash):
         try:
             self._queue.pop(block_hash)
@@ -58,11 +61,15 @@ class WorkHandler(object):
 
     async def queue_cancel(self, block_hash: str):
         # If it's queued up work, simply remove it
-        if self.work_queue.remove(block_hash):
-            self.logger.info(f"REMOVE {block_hash[:10]}...")
+        try:
+            difficulty, work_type = self.work_queue.find_remove(block_hash)
+            self.logger.info(f"REMOVED {work_type}/{block_hash[:10]}")
+            return
+        except KeyError:
+            pass
 
         # Can also be work that is currently being done
-        elif block_hash in self.work_ongoing:
+        if block_hash in self.work_ongoing:
             # Remove so that loop() does not send it when complete
             try:
                 self.work_ongoing.remove(block_hash)
@@ -76,11 +83,14 @@ class WorkHandler(object):
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
         if block_hash in self.work_queue:
+            self.logger.info(f"IGNORED {work_type}/{block_hash[:10]} (in queue)")
             return
         if block_hash in self.work_ongoing:
+            self.logger.info(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
             return
         try:
             await self.work_queue.put((block_hash, difficulty, work_type))
+            self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
         except Exception as e:
             self.logger.error(f"Work handler queue_work error: {e}")
             self.work_queue.remove(item)
@@ -91,7 +101,7 @@ class WorkHandler(object):
         while 1:
             try:
                 block_hash, (difficulty, work_type) = await self.work_queue.get()
-                self.logger.info(f"WORK {block_hash[:10]}...")
+                self.logger.info(f"WORK {work_type}/{block_hash[:10]}...")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
                     "action": "work_generate",
@@ -102,7 +112,7 @@ class WorkHandler(object):
                     self.work_ongoing.remove(block_hash)
                 except:
                     # Removed by queue_cancel, no longer needed
-                    self.logger.info(f"CANCEL {block_hash[:10]}...")
+                    self.logger.info(f"CANCEL {work_type}/{block_hash[:10]}...")
                     continue
                 res_js = await res.json()
                 if 'work' in res_js:
