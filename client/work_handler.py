@@ -75,13 +75,16 @@ class WorkHandler(object):
 
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
-        if block_hash not in self.work_queue:
-            try:
-                await self.work_queue.put((block_hash, difficulty, work_type))
-            except Exception as e:
-                self.logger.error(f"Work handler queue_work error: {e}")
-                self.work_queue.remove(item)
-                await self.error_callback()
+        if block_hash in self.work_queue:
+            return
+        if block_hash in self.work_ongoing:
+            return
+        try:
+            await self.work_queue.put((block_hash, difficulty, work_type))
+        except Exception as e:
+            self.logger.error(f"Work handler queue_work error: {e}")
+            self.work_queue.remove(item)
+            await self.error_callback()
 
     @asyncio.coroutine
     async def loop(self):
