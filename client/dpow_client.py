@@ -32,7 +32,7 @@ WELCOME = f"""
 
 async def send_work_result(client, work_type, block_hash, work):
     await client.publish(f"result/{work_type}", str.encode(f"{block_hash},{work},{config.payout}", 'utf-8'), qos=QOS_0)
-    logger.info(f"SEND {block_hash[:10]}...")
+    logger.info(f"SENT {work_type}/{block_hash[:10]}")
 
 
 async def work_server_error_callback():
