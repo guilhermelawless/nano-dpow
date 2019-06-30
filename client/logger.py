@@ -3,13 +3,16 @@ import logging
 from logging.handlers import WatchedFileHandler, TimedRotatingFileHandler
 
 def get_logger():
-    logger = logging.getLogger("dpow")
-    log_format = "%(asctime)s - %(levelname)s: "
-    formatter = logging.Formatter(log_format, "%Y-%m-%d %H:%M:%S %z")
     log_file = "logs/dpow.txt"
-    logging.basicConfig(level=logging.INFO, format=log_format + "%(message)s")
-    handler = WatchedFileHandler(log_file)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    logger = logging.getLogger("dpow")
+    logger.setLevel(logging.DEBUG)
+    stream = logging.StreamHandler(stream=sys.stdout)
+    stream.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S"))
+    stream.setLevel(logging.INFO)
+    logger.addHandler(stream)
+    file = WatchedFileHandler(log_file)
+    file.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s@%(funcName)s:%(lineno)s", "%Y-%m-%d %H:%M:%S %z"))
+    file.setLevel(logging.DEBUG)
+    logger.addHandler(file)
     logger.addHandler(TimedRotatingFileHandler(log_file, when="d", interval=1, backupCount=30))
     return logger
