@@ -10,18 +10,18 @@ from random import choice
 class WorkQueue(asyncio.Queue):
     """Specialized subclass of asyncio.Queue that retrieves random entries"""
 
-    def _init(self, maxsize):
-        self._queue = dict()
-
-    def find_remove(self, block_hash):
+    def pop(self, block_hash) -> (str, str):
         return self._queue.pop(block_hash)
 
-    def remove(self, block_hash):
+    def try_remove(self, block_hash) -> bool:
         try:
-            self._queue.pop(block_hash)
-            return True
+            self.pop(block_hash)
         except KeyError:
             return False
+        return True
+
+    def _init(self, maxsize):
+        self._queue = dict()
 
     def _put(self, item):
         block_hash, difficulty, work_type = item
@@ -62,7 +62,7 @@ class WorkHandler(object):
     async def queue_cancel(self, block_hash: str):
         # If it's queued up work, simply remove it
         try:
-            difficulty, work_type = self.work_queue.find_remove(block_hash)
+            difficulty, work_type = self.work_queue.pop(block_hash)
             self.logger.info(f"REMOVED {work_type}/{block_hash[:10]}")
             return
         except KeyError:
@@ -83,17 +83,17 @@ class WorkHandler(object):
 
     async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
         if block_hash in self.work_queue:
-            self.logger.info(f"IGNORED {work_type}/{block_hash[:10]} (in queue)")
+            self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (in queue)")
             return
         if block_hash in self.work_ongoing:
-            self.logger.info(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
+            self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
             return
         try:
             await self.work_queue.put((block_hash, difficulty, work_type))
             self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
         except Exception as e:
             self.logger.error(f"Work handler queue_work error: {e}")
-            self.work_queue.remove(item)
+            self.work_queue.try_remove(item)
             await self.error_callback()
 
     @asyncio.coroutine
@@ -115,8 +115,9 @@ class WorkHandler(object):
                     self.logger.info(f"CANCEL {work_type}/{block_hash[:10]}...")
                     continue
                 res_js = await res.json()
-                if 'work' in res_js:
+                if 'work' in res_js:                    
                     await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
+                    self.logger.info(f"SENT {work_type}/{block_hash[:10]}")
                 else:
                     error = res_js.get('error', None)
                     if error:
