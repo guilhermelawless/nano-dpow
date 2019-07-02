@@ -16,8 +16,6 @@ cd nano-dpow/client
 pip3 install --user -r requirements.txt
 ```
 
-On Windows it might be `pip` and not `pip3`.
-
 ## Running
 
 You need to find out what your GPU vendor/device numbers are if you're going to be using a GPU. Usually it will be either `0:0`, `0:1`, or `1:0`, depending on how many you have (including integrated graphics).
