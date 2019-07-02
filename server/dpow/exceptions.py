@@ -7,3 +7,6 @@ class InvalidRequest(ValueError):
 
 class RequestTimeout(Exception):
 	"""The request timed out."""
+
+class RetryRequest(Exception):
+	"""Something went wrong, ask to retry."""

@@ -131,6 +131,9 @@ class DpowServer(object):
         if not await self.database.insert_if_noexist_expire(f"block-lock:{block_hash}", '1', 5):
             return
 
+        # Set work result in DB
+        await self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY)
+
         # Set Future result if in memory
         try:
             resulting_work = self.work_futures[block_hash]
@@ -147,7 +150,6 @@ class DpowServer(object):
         # Account information and DB update
         await asyncio.gather(
             self.client_update(client, work_type, block_hash),
-            self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY),
             self.database.increment(f"stats:{work_type}"),
             self.database.set_add(f"clients", client)
         )
@@ -228,7 +230,7 @@ class DpowServer(object):
             difficulty = data.get('difficulty', None)
 
             try:
-                block_hash =    nanolib.validate_block_hash(block_hash)
+                block_hash = nanolib.validate_block_hash(block_hash)
                 if account:
                     account = account.replace("xrb_", "nano_")
                     nanolib.validate_account_id(account)
@@ -264,27 +266,28 @@ class DpowServer(object):
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
                         await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
-                        logger.warn(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
+                        logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
 
             if work_type == "ondemand":
-                # If account is not provided, service runs a risk of the next work not being precached for
-                # There is still the possibility we recognize the need to precache based on the previous block
-                if account:
-                    # Update account frontier
-                    asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
+                if block_hash not in self.work_futures:
+                    # Create a Future to be set with work when complete
+                    self.work_futures[block_hash] = loop.create_future()
 
-                # Create a Future to be set with work when complete
-                self.work_futures[block_hash] = loop.create_future()
+                    # If account is not provided, service runs a risk of the next work not being precached for
+                    # There is still the possibility we recognize the need to precache based on the previous block
+                    if account:
+                        # Update account frontier
+                        asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
 
-                # Set difficulty in DB if provided
-                if difficulty:
-                    await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
+                    # Set difficulty in DB if provided
+                    if difficulty:
+                        await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
 
-                # Base difficulty if not provided
-                difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
+                    # Base difficulty if not provided
+                    difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
 
-                # Ask for work on demand
-                await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
+                    # Ask for work on demand
+                    await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
 
                 timeout = data.get('timeout', 5)
                 try:
@@ -296,6 +299,12 @@ class DpowServer(object):
 
                 try:
                     work = await asyncio.wait_for(self.work_futures[block_hash], timeout=timeout)
+                except asyncio.CancelledError:
+                    logger.debug(f"Future was cancelled for {block_hash}")
+                    work = await self.database.get(f"block:{block_hash}")
+                    if not work:
+                        logger.error("Future was cancelled and work result not set in database")
+                        raise RetryRequest()
                 except asyncio.TimeoutError:
                     logger.warn(f"Timeout of {timeout} reached for {block_hash}")
                     raise RequestTimeout()
@@ -313,7 +322,7 @@ class DpowServer(object):
             # Increase the work type counter for this service
             asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
 
-            response = {'work': work}
+            response = {'work': work, 'hash': block_hash}
             if 'id' in data:
                 response['id'] = data['id']
 
