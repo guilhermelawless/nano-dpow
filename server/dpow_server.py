@@ -147,6 +147,12 @@ class DpowServer(object):
         # As we've got work now send cancel command to clients and do a stats update
         await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1)
 
+        try:
+            nanolib.validate_account_id(client)
+        except nanolib.InvalidAccount:
+            await self.mqtt.send(f"client/{client}", ujson.dumps({"error": f"Work accepted but account {client} is invalid"}))
+            return
+
         # Account information and DB update
         await asyncio.gather(
             self.client_update(client, work_type, block_hash),
