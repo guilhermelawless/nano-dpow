@@ -23,9 +23,9 @@ You need to find out what your GPU vendor/device numbers are if you're going to 
 ### Linux
 
 1. Install required library
-   ```bash
-   sudo apt install ocl-icd-libopencl1
-   ```
+  ```bash
+  sudo apt install ocl-icd-libopencl1
+  ```
 2. Check `./bin/linux/nano-work-server --help` for information on how to select your GPU (or CPU).
 3. Run the work server:
   ```bash
