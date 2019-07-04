@@ -22,14 +22,17 @@ You need to find out what your GPU vendor/device numbers are if you're going to 
 
 ### Linux
 
-1. Check `./bin/linux/nano-work-server --help` for information on how to select your GPU (or CPU).
-2. Run the work server:
-
+1. Install required library
+   ```bash
+   sudo apt install ocl-icd-libopencl1
+   ```
+2. Check `./bin/linux/nano-work-server --help` for information on how to select your GPU (or CPU).
+3. Run the work server:
   ```bash
   ./bin/linux/nano-work-server --gpu 0:0 -l 127.0.0.1:7000
   ```
-3. Check the client configuration options with `python3 dpow_client.py --help`
-4. Run the client:
+4. Check the client configuration options with `python3 dpow_client.py --help`
+5. Run the client:
   ```bash
   python3 dpow_client.py --payout YOUR_NANO_ADDRESS --work {ondemand,precache,any}
   ```
