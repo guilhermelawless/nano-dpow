@@ -23,12 +23,22 @@ In the event that you don't get a reply within 48 hours, please contact us on Th
 
 ## How to use
 
+### Using a middleware
+
+The first option is to use the [Betsy middleware](https://github.com/bbedward/betsy-middleware) to integrate DPoW easily into your application. This approach is recommended if *any* of the following apply to you:
+- You don't want to change your application's code
+- You need to use DPoW along with other work peers (more fallbacks than the server running the application)
+
+### Native integration
+
+The second option is to integrate the DPoW API into your application's code.
+
 You can request work using `POST` requests or websocket connections. We recommend using websockets, as some operating systems will perform an SSL handshake for each `POST` request, adding latency (at least 200 millisseconds).
 
 - `POST` requests should be sent to `https://dpow.nanocenter.org/service/`. An [example](random_hash_request.py) is provided.
 - Websocket connections should target `wss://dpow.nanocenter.org/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
 
-### Request
+#### Request
 
 A request should be json-encoded and contain the following information:
 
@@ -53,7 +63,7 @@ Description of the fields:
 - **timeout** (optional, default 5) - time in seconds (rounded down) before the server replies with a timeout error message
 - **difficulty** (optional) - hex string without `0x`. In case you need higher difficulty for your work. Maximum difficulty is 5x Nano base difficulty
 
-### Response
+#### Response
 
 A typical response from the server will be:
 
