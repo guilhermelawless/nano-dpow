@@ -202,6 +202,7 @@ class DpowServer(object):
             await self.block_arrival_handler(block_hash, account, previous)
         except Exception as e:
             logger.error(f"Unable to process block: {e}\nData:\n{data}")
+            logger.error(traceback.format_exc())
 
     @asyncio.coroutine
     async def block_arrival_cb_handler(self, request):
@@ -212,6 +213,7 @@ class DpowServer(object):
             await self.block_arrival_handler(block_hash, account, previous)
         except Exception as e:
             logger.error(f"Unable to process block: {e}\nData:\n{data}")
+            logger.error(traceback.format_exc())
         return web.Response()
 
     async def service_handler(self, data):
@@ -329,8 +331,6 @@ class DpowServer(object):
             asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
 
             response = {'work': work, 'hash': block_hash}
-            if 'id' in data:
-                response['id'] = data['id']
 
         return response
 
@@ -341,11 +341,13 @@ class DpowServer(object):
 
         try:
             async for msg in ws:
+                request_id = None
                 if msg.type == WSMsgType.TEXT:
                     try:
                         data = ujson.loads(msg.data)
                         if type(data) != dict:
                             raise InvalidRequest("Bad request (not json)")
+                        request_id = data.get('id', None)
                         response = await self.service_handler(data)
                     except InvalidRequest as e:
                         response = dict(error=e.reason)
@@ -355,6 +357,8 @@ class DpowServer(object):
                         response = dict(error=f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}")
                         logger.critical(traceback.format_exc())
                     finally:
+                        if request_id:
+                            response['id'] = request_id
                         await ws.send_json(response)
                 elif msg.type == WSMsgType.ERROR:
                     # logger.error(f"ws connection closed with exception {ws.exception()}")
@@ -367,10 +371,12 @@ class DpowServer(object):
 
     @asyncio.coroutine
     async def service_post_handler(self, request):
+        request_id = None
         try:
             data = await request.json(loads=ujson.loads)
             if type(data) != dict:
                 raise InvalidRequest("Bad request (not json)")
+            request_id = data.get('id', None)
             response = await self.service_handler(data)
         except InvalidRequest as e:
             response = dict(error=e.reason)
@@ -380,6 +386,8 @@ class DpowServer(object):
             response = dict(error=f"Unknown error, please report the following timestamp to the maintainers: {datetime.datetime.now()}")
             logger.critical(traceback.format_exc())
         finally:
+            if request_id:
+                response['id'] = request_id
             return web.json_response(response, dumps=ujson.dumps)
 
 
