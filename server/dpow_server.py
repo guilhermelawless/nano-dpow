@@ -101,12 +101,6 @@ class DpowServer(object):
         try:
             # Content is expected as CSV block,work,client
             block_hash, work, client = content.split(',')
-
-            # We expect result/{work_type} as topic
-            work_type = topic.split('/')[-1]
-            if work_type not in ('precache', 'ondemand'):
-                logger.error(f"Unexpected topic {topic} -> Extracted work_type {work_type}")
-                return
             # logger.info(f"Message {block_hash} {work} {client}")
         except Exception:
             # logger.warn(f"Could not parse message: {e}")
@@ -118,6 +112,10 @@ class DpowServer(object):
         available = await self.database.get(f"block:{block_hash}")
         if not available or available != DpowServer.WORK_PENDING:
             return
+
+        work_type = await self.database.get(f"work-type:{block_hash}")
+        if not work_type:
+            work_type = "precache" # expired ?
 
         difficulty = await self.database.get(f"block-difficulty:{block_hash}")
 
@@ -185,6 +183,8 @@ class DpowServer(object):
                 self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY),
                 # Incomplete work for new frontier
                 self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY),
+                # Set work type precache
+                self.database.insert_expire(f"work-type:{block_hash}", "precache", DpowServer.BLOCK_EXPIRY),
                 # Send for precache
                 self.mqtt.send("work/precache", f"{block_hash},{nanolib.work.WORK_DIFFICULTY}", qos=QOS_0)
             ]
@@ -277,6 +277,9 @@ class DpowServer(object):
                         logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
 
             if work_type == "ondemand":
+                # Set work type
+                await self.database.insert_expire(f"work-type:{block_hash}", work_type, DpowServer.BLOCK_EXPIRY)
+
                 if block_hash not in self.work_futures:
                     # Create a Future to be set with work when complete
                     self.work_futures[block_hash] = loop.create_future()
@@ -331,6 +334,7 @@ class DpowServer(object):
             asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
 
             response = {'work': work, 'hash': block_hash}
+            logger.info(f"Request handled for {service} -> {work_type}")
 
         return response
 
