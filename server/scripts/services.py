@@ -14,10 +14,11 @@ group.add_argument('--check', action='store_true', help='Retrieve and print serv
 group.add_argument('--delete', action='store_true', help='Delete a service entry')
 group.add_argument('--update', action='store_true', help='Update a service entry')
 group.add_argument('--list', action='store_true', help='List all users')
+group.add_argument('--stats', action='store_true', help='Statistics for all users')
 parser.add_argument('service', nargs='?', default=None, type=str, help='Service username')
 
 args = parser.parse_args()
-if not args.service and not args.list:
+if not args.service and not (args.list or args.stats):
     from sys import exit
     parser.print_help()
     exit(1)
@@ -88,7 +89,7 @@ def interactive_update():
 
 
 def display(user):
-    options = r.hgetall(f"service:{user}" )
+    options = r.hgetall(f"service:{user}")
     options = {k.decode("utf-8"): v for k,v in options.items()}
     options = {k: v if k=="api_key" else v.decode("utf-8") for k,v in options.items()}
     print(options)
@@ -125,9 +126,24 @@ def delete(user):
         print("Deleting successfull")
 
 
+def statistics(users):
+    for user in users:
+        stats = r.hgetall(f"service:{user}")
+        stats = {k.decode("utf-8"): v for k,v in stats.items()}
+        stats = {k: v if k=="api_key" else v.decode("utf-8") for k,v in stats.items()}
+        
+        print(user)
+        print(f"\t{'PUBLIC' if stats['public']=='Y' else 'PRIVATE'}\n"
+              f"\tprecache: {stats.get('precache') or 0}"
+              f"\tondemand: {stats.get('ondemand') or 0}"
+        )
+
+
 def main():
     if args.list:
         print("Services in database:\n", existing_users())
+    elif args.stats:
+        statistics(existing_users())
     else:
         user = args.service
         user_exists = exists(user)
