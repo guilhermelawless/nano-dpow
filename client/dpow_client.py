@@ -153,7 +153,7 @@ class DpowClient(object):
         logger.info(WELCOME)
         if not await self.setup():
             return await self.close()
-        logger.info("Setup successfull, waiting for work")
+        logger.info("Setup successful, waiting for work")
         await asyncio.gather(
             self.message_loop(),
             self.heartbeat_check_loop(),
