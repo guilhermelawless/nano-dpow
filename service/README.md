@@ -69,7 +69,7 @@ A typical response from the server will be:
 
 ```json
 {
-  "work": "nano_valid_work",
+  "work": "8fe6b617f9dd1ae9",
   "id": 100,
 }
 ```
@@ -91,4 +91,4 @@ The `timeout` field is only included if the error was a timeout, making it easy 
 if "timeout" in response: (...)
 ```
 
-During normal operation, the only kind of error you should only receive are `timeout` errors. Any other errors should only occur during setup. We suggest logging errors and creating a Github issue with the information.
+During normal operation, the only kind of error you should receive are `timeout` errors. Any other errors should only occur during setup. If you find another error during normal operation, please create a Github issue with the information.
