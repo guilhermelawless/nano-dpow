@@ -35,6 +35,7 @@ class DpowServer(object):
     MAX_DIFFICULTY_MULTIPLIER = 5.0
     FORCE_ONDEMAND_THRESHOLD = 0.8 # <= 1
     MAX_SERVICE_REQUESTS_PER_SECOND = 10
+    DEFAULT_WORK_DIFFICULTY = 'fffffe0000000000'
 
     def __init__(self):
         self.work_futures = dict()
@@ -120,7 +121,7 @@ class DpowServer(object):
         difficulty = await self.database.get(f"block-difficulty:{block_hash}")
 
         try:
-            nanolib.validate_work(block_hash, work, difficulty = difficulty or nanolib.work.WORK_DIFFICULTY)
+            nanolib.validate_work(block_hash, work, difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
@@ -186,7 +187,7 @@ class DpowServer(object):
                 # Set work type precache
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", DpowServer.BLOCK_EXPIRY),
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{nanolib.work.WORK_DIFFICULTY}", qos=QOS_0)
+                self.mqtt.send("work/precache", f"{block_hash},{self.DEFAULT_WORK_DIFFICULTY}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -240,8 +241,8 @@ class DpowServer(object):
             try:
                 block_hash = nanolib.validate_block_hash(block_hash)
                 if account:
-                    account = account.replace("xrb_", "nano_")
-                    nanolib.validate_account_id(account)
+                    if not Validations.validate_address(account):
+                        raise nanolib.InvalidAccount()
                 if difficulty:
                     nanolib.validate_difficulty(difficulty)
             except nanolib.InvalidBlockHash:
@@ -295,7 +296,7 @@ class DpowServer(object):
                         await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
 
                     # Base difficulty if not provided
-                    difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
+                    difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY
 
                     # Ask for work on demand
                     await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
