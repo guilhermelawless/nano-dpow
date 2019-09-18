@@ -1,7 +1,6 @@
 import asyncio
 import requests
 import aiohttp
-import aiohttp_requests
 import json
 import logging
 from random import choice
