@@ -2,7 +2,7 @@ import paho.mqtt.client as mqtt
 import json
 from time import perf_counter
 
-host = "dpow.nanocenter.org"
+host = "dpow.banano.cc"
 works = dict()
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -41,8 +41,8 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-client.username_pw_set('dpowinterface', password='wGTLbH4PcYniENL5ffHvck')
-client.connect(host, 1883)
+client.username_pw_set('client', password='client')
+client.connect(host, 8883)
 
 client.subscribe("work/#")
 client.subscribe("result/#")

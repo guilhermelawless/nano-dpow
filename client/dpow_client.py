@@ -18,7 +18,7 @@ logger = get_logger()
 
 WELCOME = f"""
 
-=====Nano Community DPoW=====
+=========BANANO DPoW=========
 
 - Payouts to {config.payout}
 - Doing {config.work_type} work
