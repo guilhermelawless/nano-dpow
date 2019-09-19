@@ -11,12 +11,12 @@ Banano transactions require a "proof of work" in order to be broadcasted and con
 The proof of work required for a BANANO transasction can be calculated within a couple seconds on most modern computers. Which begs the question "why does it matter?"
 
 1. There's applications that require large volumes of PoW, while an individual calculation can be acceptable fast - it is different when it's overloaded with hundreds of problems to solve all at the same time.
-..* The [Graham TipBot](https://github.com/bbedward/Graham_Nano_Tip_Bot) has been among the biggest block producers on the NANO and BANANO networks for more than a year. Requiring tens of thousands of calculations every month.
-..* The [Twitter and Telegram TipBots](https://github.com/mitche50/NanoTipBot) also calculate PoW for every transaction
-..* [Kalium](https://kalium.banano.cc) and [Natrium](https://natrium.io) are two of the most widely used wallets on the NANO and BANANO networks with more than 10,000 users each. They all demand PoW whenever they make or send a transaction.
-..* There's many other popular casinos, exchanges, and other applications that can benefit from a highly-available, highly-reliable PoW service.
+    * The [Graham TipBot](https://github.com/bbedward/Graham_Nano_Tip_Bot) has been among the biggest block producers on the NANO and BANANO networks for more than a year. Requiring tens of thousands of calculations every month.
+    * The [Twitter and Telegram TipBots](https://github.com/mitche50/NanoTipBot) also calculate PoW for every transaction
+    * [Kalium](https://kalium.banano.cc) and [Natrium](https://natrium.io) are two of the most widely used wallets on the NANO and BANANO networks with more than 10,000 users each. They all demand PoW whenever they make or send a transaction.
+    * There's many other popular casinos, exchanges, and other applications that can benefit from a highly-available, highly-reliable PoW service.
 2. While a single PoW (for BANANO) can be calculated fairly quickly on modern hardware, there are some scenarios in which sub-second PoW is highly desired.
-..* [Kalium](https://kalium.banano.cc) and [Natrium](https://natrium.io) are at the frontlines of daily NANO and BANANO use. People use these wallets to showcase BANANO or NANO to their friends, to send money when they need to, they're used in promotional videos on YouTube, Twitter, and other platforms. *Fast* PoW is an absolute must for these services - the BdPoW system will provide incredibly fast proof of work from people who contribute using high-end hardware.
+    * [Kalium](https://kalium.banano.cc) and [Natrium](https://natrium.io) are at the frontlines of daily NANO and BANANO use. People use these wallets to showcase BANANO or NANO to their friends, to send money when they need to, they're used in promotional videos on YouTube, Twitter, and other platforms. *Fast* PoW is an absolute must for these services - the BdPoW system will provide incredibly fast proof of work from people who contribute using high-end hardware.
 
 All of the aforementioned services will use the BdPoW system, and others services are free to request access as well.
 
