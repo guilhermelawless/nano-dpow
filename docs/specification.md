@@ -42,7 +42,7 @@ block_hash,work_result,client_address
 
 Example:
 ```csv
-BFEB8AA91D346E6EFBB41D11FD247E48E0BC0DBC183DDEB9F26F3A98AA17522F,3108a2891093ce9e,nano_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7
+BFEB8AA91D346E6EFBB41D11FD247E48E0BC0DBC183DDEB9F26F3A98AA17522F,3108a2891093ce9e,ban_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7
 ```
 
 

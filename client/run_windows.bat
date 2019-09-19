@@ -1,7 +1,7 @@
 @echo off
 
 :: Nano payout address
-set payout_address="nano_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7"
+set payout_address="ban_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7"
 
 :: Desired work type, options are "ondemand", "precache", "any" (default)
 set desired_work_type="any"
