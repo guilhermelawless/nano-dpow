@@ -31,7 +31,6 @@ payout_factor = min(float(payout_factor), 0.05) if payout_factor is not None els
 print(f"Paying {payout_factor} BANANO per PoW")
 
 clients = r.smembers("clients")
-clients = {c.decode("utf-8") for c in clients}
 
 total_paid = 0
 
