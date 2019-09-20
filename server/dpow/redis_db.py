@@ -21,6 +21,10 @@ class DpowRedis(object):
         self.pool.close()
         await self.pool.wait_closed()
 
+    async def get_payment_factor(self):
+        payment_factor = await self.get("dpow:paymentfactor")
+        return float(payment_factor) if payment_factor is not None else 0
+
     async def all_statistics(self):
         precache_total = await self.get("stats:precache")
         on_demand_total = await self.get("stats:ondemand")
