@@ -25,6 +25,10 @@ class DpowRedis(object):
         payment_factor = await self.get("dpow:paymentfactor")
         return float(payment_factor) if payment_factor is not None else 0
 
+    async def get_total_paid(self):
+        total_paid = await self.get('dpow:totalrewards')
+        return float(total_paid) if total_paid is not None else 0
+
     async def all_statistics(self):
         precache_total = await self.get("stats:precache")
         on_demand_total = await self.get("stats:ondemand")
@@ -46,6 +50,8 @@ class DpowRedis(object):
                 private_services["precache"] += info["precache"]
                 private_services["ondemand"] += info["ondemand"]
         return dict(
+            total_paid_banano = await self.get_total_paid(),
+            payment_factor_banano = await self.get_payment_factor(),
             services = {
                 "public": public_services,
                 "private": private_services

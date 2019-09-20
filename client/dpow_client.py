@@ -82,7 +82,20 @@ class DpowClient(object):
 
     def handle_stats(self, message):
         try:
-            logger.info(f"STATS {json.loads(message.data)}")
+            stats = json.loads(message.data)
+            ondemand = int(stats['ondemand']) if 'ondemand' in stats else 0
+            precache = int(stats['precache']) if 'precache' in stats else 0
+            total_work = ondemand + precache
+            total_credited = int(stats['total_credited']) if 'total_credited' in stats else 0
+            total_paid = float(stats['total_paid']) if 'total_paid' in stats else 0.0
+            payment_factor = float(stats['payment_factor']) if 'payment_factor' in stats else 0.0
+            # Figure out estimated payout
+            estimated_payout = (total_work - total_credited) * payment_factor
+            logger.info(f"BLOCK REWARDED: {stats['block_rewarded']}")
+            logger.info("STATS:\n-----")
+            logger.info(f"Total Rewarded: {total_work} - ondemand: {ondemand} - precache: {precache}")
+            logger.info(f"Total Earned to Date: {total_paid} BANANO")
+            logger.info(f"Estimated next payout amount: {estimated_payout}")
         except Exception as e:
             logger.warn(f"Could not parse stats message {message}:\n{e}")
 

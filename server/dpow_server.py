@@ -95,6 +95,8 @@ class DpowServer(object):
         stats = {k: int(v) for k,v in stats.items()}
         # Add the block hash that got rewarded
         stats['block_rewarded'] = block_rewarded
+        # Add payment factor
+        stats['payment_factor'] = await self.database.get_payment_factor()
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
