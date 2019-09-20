@@ -1,4 +1,4 @@
-# BANANO BdPoW Client
+# BoomPow Client
 
 These steps will guide you on how to setup a new work client. The nano-work-server provided is based on [nanocurrency/nano-work-server](https://github.com/nanocurrency/nano-work-server). Only this work server is fully supported.
 
@@ -10,8 +10,8 @@ These steps will guide you on how to setup a new work client. The nano-work-serv
 
 ### Installation
 
-- Download the [latest version](https://github.com/bbedward/banano-bdpow/releases) and extract.
-- Open a console under `bdpow-client`. On Windows, shift + right-click and "Open Powershell window here".
+- Download the [latest version](https://github.com/bbedward/boompow/releases) and extract.
+- Open a console under `bpow-client`. On Windows, shift + right-click and "Open Powershell window here".
 - `pip3 install --user -r requirements.txt`
 
 ## Running
@@ -29,10 +29,10 @@ You need to find out what your GPU vendor/device numbers are if you're going to 
   ```bash
   ./bin/linux/nano-work-server --gpu 0:0 -l 127.0.0.1:7000
   ```
-4. Check the client configuration options with `python3 dpow_client.py --help`
+4. Check the client configuration options with `python3 bpow_client.py --help`
 5. Run the client:
   ```bash
-  python3 dpow_client.py --payout YOUR_BANANO_ADDRESS --work {ondemand,precache,any}
+  python3 bpow_client.py --payout YOUR_BANANO_ADDRESS --work {ondemand,precache,any}
   ```
 
 ### Windows

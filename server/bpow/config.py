@@ -1,6 +1,6 @@
 import argparse
 
-class DpowConfig(object):
+class BpowConfig(object):
 
     def __init__(self):
         parser = argparse.ArgumentParser()

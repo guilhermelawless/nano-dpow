@@ -13,8 +13,8 @@ class WatchedTimedRotatingFileHandler(TimedRotatingFileHandler, WatchedFileHandl
         super().emit(record)
 
 def get_logger():
-    log_file = "logs/dpow.txt"
-    logger = logging.getLogger("dpow")
+    log_file = "logs/bpow.log"
+    logger = logging.getLogger("bpow")
     logger.setLevel(logging.DEBUG)
     stream = logging.StreamHandler(stream=sys.stdout)
     stream.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%H:%M:%S"))

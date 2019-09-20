@@ -42,7 +42,7 @@ block_hash,work_result,client_address
 
 Example:
 ```csv
-BFEB8AA91D346E6EFBB41D11FD247E48E0BC0DBC183DDEB9F26F3A98AA17522F,3108a2891093ce9e,ban_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7
+BFEB8AA91D346E6EFBB41D11FD247E48E0BC0DBC183DDEB9F26F3A98AA17522F,3108a2891093ce9e,ban_1boompow14irck1yauquqypt7afqrh8b6bbu5r93pc6hgbqs7z6o99frcuym
 ```
 
 
@@ -84,14 +84,20 @@ Message format as example:
 {
     "precache": 51230,
     "ondemand": 11757,
-    "snapshot_precache": 33012,
-    "snapshot_ondemand": 7893,
+    "total_credited": 52000,
+    "total_paid": 1000,
+    "payment_factor": 0.05,
     "block_rewarded": "0FAD765D873CF9412A4A651D072D3AB3262E4EDC6727516EE70A1B2ED58ADADE"
 }
 ```
 
-The snapshot fields are updated when the server performs payouts. The `block_rewarded` field contains the latest block for which the client's work was accepted.
+The `total_credited` field indicates how many work units the client has been paid for.
 
+The `total_paid` field indicates how many BANANO the client has been paid for the credited work units.
+
+The `block_rewarded` field contains the latest block for which the client's work was accepted.
+
+The `payment_factor`field indicates how much the server is currently paying in BANANO for each accepted work unit.
 
 ### heartbeat
 
@@ -99,11 +105,14 @@ This topic has an empty message, and is used to alert clients and dashboards tha
 
 ### statistics
 
-Provides complete statistics about services using DPoW, their work counters and public information. A message is sent every 5 minutes.
+Provides complete statistics about services using BoomPow, their work counters and public information. A message is sent every 5 minutes.
 
 Message format as example:
 ```json
 {
+    "total_paid_banano": 1234.56,
+    "payment_factor_banano": 0.05,
+    "total
     "services":
     {
         "public":
@@ -132,3 +141,5 @@ Message format as example:
 ```
 
 Information of `private` services is accumulated. `count` is the number of private services registered.
+
+The field `total_paid_banano` indicates how many BANANO the system has paid out to contributors combined, and the field  `payment_factor_banano` indicates the current payment amount per unit of work accepted.

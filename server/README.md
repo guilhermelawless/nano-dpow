@@ -1,4 +1,4 @@
-# Nano DPoW Server
+# BoomPow Server
 
 ## Setup
 
@@ -6,9 +6,9 @@
 
 1. Python 3.6.7 or higher.
 2. A redis server running on `redis://localhost` by default.
-3. An MQTT broker (tested with Mosquitto) running on `mqtt://localhost:1883` by default.
+3. An MQTT broker (tested with Mosquitto) with listeners on port `1883` and `8883`.
 4. Authentication configured on the MQTT broker
-5. Callbacks from a Nano node to `0.0.0.0:5030` by default.
+5. Callbacks from a BANANO node to `127.0.0.1:5030` by default.
 
 ### Installation
 
@@ -19,5 +19,5 @@ pip3 install -r requirements.txt
 ## Running
 
 ```bash
-python3 dpow_server.py
+python3 bpow_server.py
 ```

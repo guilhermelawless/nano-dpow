@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from config_parse import DpowClientConfig
-config = DpowClientConfig()
+from config_parse import BpowClientConfig
+config = BpowClientConfig()
 
 from sys import argv
 import json
@@ -18,7 +18,7 @@ logger = get_logger()
 
 WELCOME = f"""
 
-=========BANANO DPoW=========
+=======BoomPow (bPow)========
 
 - Payouts to {config.payout}
 - Doing {config.work_type} work
@@ -38,7 +38,7 @@ async def work_server_error_callback():
     pass
 
 
-class DpowClient(object):
+class BpowClient(object):
 
     def __init__(self):
         self.client = MQTTClient(
@@ -80,6 +80,19 @@ class DpowClient(object):
         else:
             logger.warn(f"Invalid hash {block_hash}")
 
+    def format_stat_message(self, block_rewarded: str, total_work_accepted: int, ondemand: int, precache: int, paid_units: int, paid_amount: float, paid_pending: float):
+        return f"""Block Rewarded: {block_rewarded}
+---------------------
+BoomPow Stats Update:
+---------------------
+Overall {total_work_accepted} of your work units have been accepted by BoomPow (ondemand: {ondemand}, precache: {precache})
+
+You have been paid for {paid_units} of those work units and have received {paid_amount} BANANO so far.
+
+So far you've earned {paid_pending} BANANO towards your next payment
+---"""
+        
+
     def handle_stats(self, message):
         try:
             stats = json.loads(message.data)
@@ -91,11 +104,7 @@ class DpowClient(object):
             payment_factor = float(stats['payment_factor']) if 'payment_factor' in stats else 0.0
             # Figure out estimated payout
             estimated_payout = (total_work - total_credited) * payment_factor
-            logger.info(f"BLOCK REWARDED: {stats['block_rewarded']}")
-            logger.info("STATS:\n-----")
-            logger.info(f"Total Rewarded: {total_work} - ondemand: {ondemand} - precache: {precache}")
-            logger.info(f"Total Earned to Date: {total_paid} BANANO")
-            logger.info(f"Estimated next payout amount: {estimated_payout}")
+            logger.info(self.format_stat_message(stats['block_rewarded'], total_work, ondemand, precache, total_credited, total_paid, estimated_payout))
         except Exception as e:
             logger.warn(f"Could not parse stats message {message}:\n{e}")
 
@@ -210,9 +219,9 @@ class DpowClient(object):
 
 
 if __name__ == "__main__":
-    dpow_client = DpowClient()
+    bpow_client = BpowClient()
     try:
-        loop.run_until_complete(dpow_client.run())
+        loop.run_until_complete(bpow_client.run())
         loop.close()
     except KeyboardInterrupt:
         pass

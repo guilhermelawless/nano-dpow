@@ -1,14 +1,14 @@
-# BANANO BdPoW Service
+# BoomPow Service
 
-A BdPoW service requests proofs of work (PoW) from the BdPoW server. In order to prevent potential spam, we need to consider and evaluate each service individually.
+A BoomPow service requests proofs of work (PoW) from the BoomPow server. In order to prevent potential spam, we need to consider and evaluate each service individually.
 
 ## Rules
 
-By using BdPoW as a service, you accept the following conditions:
+By using BoomPow as a service, you accept the following conditions:
 
-- Spamming requests or acting with general malicious intent towards BdPoW, Banano network, or the Nano network is explicitly forbidden with the exception of pre-announced tests.
+- Spamming requests or acting with general malicious intent towards BoomPow, Banano network, or the Nano network is explicitly forbidden with the exception of pre-announced tests.
 - No availability, reliability and/or warranty guarantees are provided.
-- Failing to meet any of these conditions will result in revoking of your privileges to use BdPoW.
+- Failing to meet any of these conditions will result in revoking of your privileges to use BoomPow.
 
 ## Apply to use
 
@@ -20,20 +20,20 @@ Just tell us about your service and what it's for, also include your website and
 
 ### Using a middleware
 
-The first and easiest option is to use the [Betsy middleware](https://github.com/bbedward/betsy-middleware) to integrate BdPoW easily into your application. This approach is recommended if *any* of the following apply to you:
+The first and easiest option is to use the [Betsy middleware](https://github.com/bbedward/betsy-middleware) to integrate BoomPow easily into your application. This approach is recommended if *any* of the following apply to you:
 - You don't want to change your application's code
-- You need to use DPoW along with other work peers (more fallbacks than the server running the application)
+- You need to use BoomPow along with other work peers (more fallbacks than the server running the application)
 
 We can help you get started with Betsy over at the [BANANO discord](https://chat.banano.cc).
 
 ### Native integration
 
-The second option is to integrate the BdPoW API into your application's code. This is more complicated and will not be compatible with other work servers - but it may result in slightly faster requests than using Betsy.
+The second option is to integrate the BoomPow API into your application's code. This is more complicated and will not be compatible with other work servers - but it may result in slightly faster requests than using Betsy.
 
 You can request work using `POST` requests or websocket connections. Websockets will be slightly faster, but they will also increase the complexity of the application.
 
-- `POST` requests should be sent to `https://dpow.banano.cc/service/`. An [example](random_hash_request.py) is provided.
-- Websocket connections should target `wss://dpow.banano.cc/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
+- `POST` requests should be sent to `https://bpow.banano.cc/service/`. An [example](random_hash_request.py) is provided.
+- Websocket connections should target `wss://bpow.banano.cc/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
 
 #### Request
 
@@ -52,9 +52,8 @@ A request should be json-encoded and contain the following information:
 
 Description of the fields:
 
-- **user** + **api_key** - you should receive this information after being accepted to use DPoW
+- **user** + **api_key** - you should receive this information after being accepted to use BoomPow
 - **hash** - this is the 64-character hash for which you need a proof of work. See the [Nano documentation](https://docs.nano.org/commands/rpc-protocol/#work_generate) for more information
-- **account** (optional, advised) - sending an account is not required, but helps DPoW precache work for the next transaction, which means it will be faster to reply the next time. It is possible, but with a possibility of failure, to precache even without this field
 - **id** (optional) - the server will reply to the request with the same id. Useful when doing multiple requests asynchronously (via websocket)
 - **timeout** (optional, default 5) - time in seconds (rounded down) before the server replies with a timeout error message
 - **difficulty** (optional, default `ffffffe000000000`) - hex string without `0x`. In case you need higher difficulty for your work. If requesting work for a NANO block you need to specify a difficulty of `ffffffc000000000` or greater.

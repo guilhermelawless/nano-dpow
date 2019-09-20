@@ -5,7 +5,7 @@ import logging
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
-class DpowMQTT(object):
+class BpowMQTT(object):
 
     def __init__(self, broker: str, loop, message_handle_cb, logger=logging):
 

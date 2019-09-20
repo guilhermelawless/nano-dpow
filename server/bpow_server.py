@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from dpow import *
-config = DpowConfig() # takes a while to --help if this goes after imports
+from bpow import *
+config = BpowConfig() # takes a while to --help if this goes after imports
 
 import traceback
 import sys
@@ -17,7 +17,7 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
-config = DpowConfig()
+config = BpowConfig()
 logger = get_logger()
 
 
@@ -27,7 +27,7 @@ def hash_key(x: str):
     return m.digest()
 
 
-class DpowServer(object):
+class BpowServer(object):
     WORK_PENDING = "0"
     BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
     ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
@@ -39,9 +39,9 @@ class DpowServer(object):
 
     def __init__(self):
         self.work_futures = dict()
-        self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=DpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
-        self.database = DpowRedis("redis://localhost", loop)
-        self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
+        self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=BpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
+        self.database = BpowRedis("redis://localhost", loop)
+        self.mqtt = BpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
         if config.use_websocket:
             self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler, logger=logger)
         else:
@@ -113,7 +113,7 @@ class DpowServer(object):
         # - Block is removed from DB once account frontier that contained it is updated
         # - Block corresponding value is WORK_PENDING if work is pending
         available = await self.database.get(f"block:{block_hash}")
-        if not available or available != DpowServer.WORK_PENDING:
+        if not available or available != BpowServer.WORK_PENDING:
             return
 
         work_type = await self.database.get(f"work-type:{block_hash}")
@@ -133,7 +133,7 @@ class DpowServer(object):
             return
 
         # Set work result in DB
-        await self.database.insert_expire(f"block:{block_hash}", work, DpowServer.BLOCK_EXPIRY)
+        await self.database.insert_expire(f"block:{block_hash}", work, BpowServer.BLOCK_EXPIRY)
 
         # Set Future result if in memory
         try:
@@ -181,11 +181,11 @@ class DpowServer(object):
         if should_precache:
             aws = [
                 # Account frontier update
-                self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY),
+                self.database.insert_expire(f"account:{account}", block_hash, BpowServer.ACCOUNT_EXPIRY),
                 # Incomplete work for new frontier
-                self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY),
+                self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY),
                 # Set work type precache
-                self.database.insert_expire(f"work-type:{block_hash}", "precache", DpowServer.BLOCK_EXPIRY),
+                self.database.insert_expire(f"work-type:{block_hash}", "precache", BpowServer.BLOCK_EXPIRY),
                 # Send for precache
                 self.mqtt.send("work/precache", f"{block_hash},{self.DEFAULT_WORK_DIFFICULTY}", qos=QOS_0)
             ]
@@ -256,30 +256,30 @@ class DpowServer(object):
 
             if difficulty:
                 difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
-                if difficulty_multiplier > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                    raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
+                if difficulty_multiplier > BpowServer.MAX_DIFFICULTY_MULTIPLIER:
+                    raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(BpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {BpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
 
             #Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")
 
             if work is None:
                 # Set incomplete work
-                await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, DpowServer.BLOCK_EXPIRY)
+                await self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY)
 
             work_type = "ondemand"
-            if work and work != DpowServer.WORK_PENDING:
+            if work and work != BpowServer.WORK_PENDING:
                 work_type = "precache"
                 if difficulty:
                     precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
-                    if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
+                    if precached_multiplier < BpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
-                        await self.database.insert(f"block:{block_hash}", DpowServer.WORK_PENDING)
+                        await self.database.insert(f"block:{block_hash}", BpowServer.WORK_PENDING)
                         logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
 
             if work_type == "ondemand":
                 # Set work type
-                await self.database.insert_expire(f"work-type:{block_hash}", work_type, DpowServer.BLOCK_EXPIRY)
+                await self.database.insert_expire(f"work-type:{block_hash}", work_type, BpowServer.BLOCK_EXPIRY)
 
                 if block_hash not in self.work_futures:
                     # Create a Future to be set with work when complete
@@ -289,11 +289,11 @@ class DpowServer(object):
                     # There is still the possibility we recognize the need to precache based on the previous block
                     if account:
                         # Update account frontier
-                        asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, DpowServer.ACCOUNT_EXPIRY))
+                        asyncio.ensure_future(self.database.insert_expire(f"account:{account}", block_hash, BpowServer.ACCOUNT_EXPIRY))
 
                     # Set difficulty in DB if provided
                     if difficulty:
-                        await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
+                        await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, BpowServer.DIFFICULTY_EXPIRY)
 
                     # Base difficulty if not provided
                     difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY
@@ -397,7 +397,7 @@ class DpowServer(object):
 
 
 def main():
-    server = DpowServer()
+    server = BpowServer()
 
     async def startup(app):
         logger.info("Server starting")

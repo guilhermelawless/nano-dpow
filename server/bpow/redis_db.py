@@ -5,7 +5,7 @@ import aioredis
 
 SERVICE_PUBLIC = "Y"
 
-class DpowRedis(object):
+class BpowRedis(object):
 
     def __init__(self, server, loop):
         self.pool = aioredis.create_pool(
@@ -22,11 +22,11 @@ class DpowRedis(object):
         await self.pool.wait_closed()
 
     async def get_payment_factor(self):
-        payment_factor = await self.get("dpow:paymentfactor")
+        payment_factor = await self.get("bpow:paymentfactor")
         return float(payment_factor) if payment_factor is not None else 0
 
     async def get_total_paid(self):
-        total_paid = await self.get('dpow:totalrewards')
+        total_paid = await self.get('bpow:totalrewards')
         return float(total_paid) if total_paid is not None else 0
 
     async def all_statistics(self):

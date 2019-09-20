@@ -4,9 +4,11 @@ import re
 import argparse
 import redis
 import requests
+import logging
+from logging.handlers import TimedRotatingFileHandler, WatchedFileHandler
 from collections import defaultdict
 from datetime import datetime
-from dpow import Validations
+from bpow import Validations
 
 r = redis.StrictRedis(host="localhost", port=6379, decode_responses=True)
 
@@ -20,13 +22,13 @@ args = parser.parse_args()
 
 if args.set_payout_factor:
     print(f"Setting payout factor to {args.set_payout_factor}")
-    r.set("dpow:paymentfactor", str(args.set_payout_factor))
+    r.set("bpow:paymentfactor", str(args.set_payout_factor))
     exit(0)
 elif not Validations.validate_address(args.account):
     print("Invalid payout address specified")
     exit(1)
 
-payout_factor = r.get("dpow:paymentfactor")
+payout_factor = r.get("bpow:paymentfactor")
 payout_factor = min(float(payout_factor), 0.05) if payout_factor is not None else 0
 print(f"Paying {payout_factor} BANANO per PoW")
 
@@ -34,6 +36,19 @@ clients = r.smembers("clients")
 clients = {c for c in clients}
 
 final_payout_sum = 0
+
+# Setup logging
+LOG_FILE = '/tmp/bpow_payments.log'
+logger = logging.getLogger()
+def setup_logger():
+    logging.basicConfig(level=logging.INFO)
+    handler = WatchedFileHandler(LOG_FILE)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s@%(funcName)s:%(lineno)s", "%Y-%m-%d %H:%M:%S %z")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.addHandler(TimedRotatingFileHandler(LOG_FILE, when="d", interval=1, backupCount=100))
+
+setup_logger()
 
 def communicate_wallet(self, wallet_command) -> dict:
     try:
@@ -60,12 +75,12 @@ def send(self, destination : str, amount_ban : float, uid : str) -> str:
 
 for client in clients:
     if not Validations.validate_address(client):
-        print("!Skipping client '{}' as it is an invalid BANANO account!\n\n".format(client))
+        logger.info(f"!Skipping client '{client}' as it is an invalid BANANO account!\n\n")
         continue
     client_info = r.hgetall(f"client:{client}")
     if not client_info:
         continue
-    print(f"Processing payments for {client}")
+    logger.info(f"Processing payments for {client}")
 
     # Sum total work contributions
     total_works = 0
@@ -80,16 +95,17 @@ for client in clients:
     should_be_credited = total_works - total_credited
 
     if should_be_credited < 0:
-        raise Exception(f'bad state, client has total_works < total_credited {client}')
+        logger.error(f"Skipping client, bad state: client has total_works < total_credited {client}")
+        continue
     elif should_be_credited == 0:
         continue
 
     payment_amount = should_be_credited * payout_factor
 
-    print(f"Paying {payment_amount} to {client} for {should_be_credited} PoWs")
+    logger.info(f"Paying {payment_amount} to {client} for {should_be_credited} PoWs")
 
     if args.dry_run:
-        print("Dry run, not processing payment")
+        logger.info("Dry run, not processing payment")
         continue
 
     send_resp = send(client, payment_amount)
@@ -98,15 +114,13 @@ for client in clients:
         r.hset(f"client:{client}", 'total_paid', str(payment_amount + total_paid))
         final_payout_sum += payment_amount
     else:
-        print("PAYMENT FAILED, RPC SEND RETURNED NULL")
+        logger.error("PAYMENT FAILED, RPC SEND RETURNED NULL")
 
-    print("\n")
-
-total_paid_db = r.get('dpow:totalrewards')
+total_paid_db = r.get('bpow:totalrewards')
 total_paid_db = float(total_paid_db) if total_paid_db is not None else 0.0
 
 total_paid_db += final_payout_sum
 
-r.set('dpow:totalrewards', str(total_paid_db))
+r.set('bpow:totalrewards', str(total_paid_db))
 
-print(f"Total paid today {final_payout_sum}, total paid all time {total_paid_db}")
+logger.info(f"Total paid today {final_payout_sum}, total paid all time {total_paid_db}")

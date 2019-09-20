@@ -1,5 +1,5 @@
 __pycache__/
 build/
 *.json
-dpow.txt
+bpow.log
 **/venv
