@@ -10,6 +10,7 @@ import hashlib
 import asyncio
 import uvloop
 import nanolib
+from time import time
 from collections import defaultdict
 from asyncio_throttle import Throttler
 from aiohttp import web, WSMsgType
@@ -37,6 +38,7 @@ class DpowServer(object):
     MAX_SERVICE_REQUESTS_PER_SECOND = 10
 
     def __init__(self):
+        self.last_block = None
         self.work_futures = dict()
         self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=DpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
         self.database = DpowRedis("redis://localhost", loop)
@@ -159,6 +161,7 @@ class DpowServer(object):
         )
 
     async def block_arrival_handler(self, block_hash, account, previous):
+        self.last_block = time()
         should_precache = config.debug
         previous_exists = None
         old_frontier = await self.database.get(f"account:{account}")
@@ -394,6 +397,13 @@ class DpowServer(object):
                 response['id'] = request_id
             return web.json_response(response, dumps=ujson.dumps)
 
+    @asyncio.coroutine
+    async def upcheck_blocks_handler(self, request):
+        if not self.last_block:
+            return web.Response(text="")
+        else:
+            ellapsed = time() - self.last_block
+            return web.Response(text=f"{ellapsed:.2f}")
 
 def main():
     server = DpowServer()
@@ -430,10 +440,11 @@ def main():
     coroutine_ws = loop.create_server(handler_ws, "0.0.0.0", 5035)
     server_ws = loop.run_until_complete(coroutine_ws)
 
-    # endpoint for checking if server is up
+    # endpoint for checking if server is up and if blocks are being received
     app_upcheck = web.Application()
     upcheck_handler = lambda request: web.Response(text="up")
     app_upcheck.router.add_get('/upcheck/', upcheck_handler)
+    app_upcheck.router.add_get('/upcheck/blocks/', server.upcheck_blocks_handler)
     handler_upcheck = app_upcheck.make_handler()
     coroutine_upcheck = loop.create_server(handler_upcheck, "0.0.0.0", 5031)
     server_upcheck = loop.run_until_complete(coroutine_upcheck)
