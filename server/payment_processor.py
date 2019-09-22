@@ -14,7 +14,7 @@ r = redis.StrictRedis(host="localhost", port=6379, decode_responses=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--node', type=str, default='http://[::1]:7072')
-parser.add_argument('--wallet', type=str, help="BANANO node wallet.", default='0')
+parser.add_argument('--wallet', type=str, help="BANANO node wallet.", default='522B56D9021982C1D99AF5AC155F148C66C717BC29A34662D6BDB07A0B0812C2')
 parser.add_argument('--account', type=str, help='Account from which to send funds.', default='ban_1boompow14irck1yauquqypt7afqrh8b6bbu5r93pc6hgbqs7z6o99frcuym')
 parser.add_argument('--set-payout-factor', type=float, help='Change payment factor', default=None)
 parser.add_argument('--dry_run', action='store_true', help='Perform everything except sending funds, for debugging.')
