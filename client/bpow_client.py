@@ -5,6 +5,7 @@ config = BpowClientConfig()
 from sys import argv
 import json
 import asyncio
+import math
 from time import time
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -81,6 +82,8 @@ class BpowClient(object):
             logger.warn(f"Invalid hash {block_hash}")
 
     def format_stat_message(self, block_rewarded: str, total_work_accepted: int, ondemand: int, precache: int, paid_units: int, paid_amount: float, paid_pending: float):
+        paid_amount = math.floor(paid_amount*100)/100
+        paid_pending = math.floor(paid_pending*100)/100
         return f"""Block Rewarded: {block_rewarded}
 ---------------------
 BoomPow Stats Update:
@@ -89,7 +92,7 @@ Overall {total_work_accepted} of your work units have been accepted by BoomPow (
 
 You have been paid for {paid_units} of those work units and have received {paid_amount} BANANO so far.
 
-So far you've earned {paid_pending} BANANO towards your next payment
+So far you've earned {paid_pending} BANANO towards your next reward
 ---"""
         
 
