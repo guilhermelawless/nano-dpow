@@ -32,7 +32,7 @@ class BpowServer(object):
     BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
     ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
     DIFFICULTY_EXPIRY = 2*60
-    MAX_DIFFICULTY_MULTIPLIER = 5.0
+    MAX_DIFFICULTY_MULTIPLIER = 13.0
     FORCE_ONDEMAND_THRESHOLD = 0.8 # <= 1
     MAX_SERVICE_REQUESTS_PER_SECOND = 10
     DEFAULT_WORK_DIFFICULTY = 'fffffe0000000000'
@@ -255,9 +255,9 @@ class BpowServer(object):
                 raise InvalidRequest("Difficulty too low")
 
             if difficulty:
-                difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
+                difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=BpowServer.DEFAULT_WORK_DIFFICULTY)
                 if difficulty_multiplier > BpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                    raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(BpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {BpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
+                    raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(BpowServer.MAX_DIFFICULTY_MULTIPLIER, base_difficulty=BpowServer.DEFAULT_WORK_DIFFICULTY)} ( {BpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
 
             #Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")

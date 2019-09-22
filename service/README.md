@@ -46,7 +46,7 @@ A request should be json-encoded and contain the following information:
   "hash": "block_hash",
   "id": 100,
   "timeout": 5,
-  "difficulty": "ffffffe000000000"
+  "difficulty": "fffffe0000000000"
 }
 ```
 
@@ -56,7 +56,7 @@ Description of the fields:
 - **hash** - this is the 64-character hash for which you need a proof of work. See the [Nano documentation](https://docs.nano.org/commands/rpc-protocol/#work_generate) for more information
 - **id** (optional) - the server will reply to the request with the same id. Useful when doing multiple requests asynchronously (via websocket)
 - **timeout** (optional, default 5) - time in seconds (rounded down) before the server replies with a timeout error message
-- **difficulty** (optional, default `ffffffe000000000`) - hex string without `0x`. In case you need higher difficulty for your work. If requesting work for a NANO block you need to specify a difficulty of `ffffffc000000000` or greater.
+- **difficulty** (optional, default `fffffe0000000000`) - hex string without `0x`. In case you need higher difficulty for your work. If requesting work for a NANO block you need to specify a difficulty of `ffffffc000000000` or greater.
 
 #### Response
 
