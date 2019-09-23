@@ -92,7 +92,7 @@ for client in clients:
 
     # Get how many pows this client has already been paid for
     total_credited = int(client_info['total_credited']) if 'total_credited' in client_info else 0
-    total_paid = int(client_info['total_paid']) if 'total_paid' in client_info else 0
+    total_paid = float(client_info['total_paid']) if 'total_paid' in client_info else 0.0
 
     # Get how many this client should be paid for
     should_be_credited = total_works - total_credited
@@ -116,6 +116,7 @@ for client in clients:
         r.hset(f"client:{client}", 'total_credited', str(total_works))
         r.hset(f"client:{client}", 'total_paid', str(payment_amount + total_paid))
         final_payout_sum += payment_amount
+        logger.info(f"Block Hash: {send_resp}")
     else:
         logger.error("PAYMENT FAILED, RPC SEND RETURNED NULL")
 
