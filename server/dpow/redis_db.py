@@ -22,8 +22,8 @@ class DpowRedis(object):
         await self.pool.wait_closed()
 
     async def all_statistics(self):
-        precache_total = await self.get("stats:precache")
-        on_demand_total = await self.get("stats:ondemand")
+        precache_total = await self.get("stats:precache") or 0
+        on_demand_total = await self.get("stats:ondemand") or 0
 
         public_services = list()
         private_services = {"count": 0, "precache": 0, "ondemand": 0}
