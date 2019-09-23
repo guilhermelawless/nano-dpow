@@ -71,7 +71,7 @@ def send(destination : str, amount_ban : float) -> str:
         "destination": destination,
         "amount": amount_raw
     }
-    resp = self.communicate_wallet(action)
+    resp = communicate_wallet(action)
     if resp is not None and 'block' in resp:
         return resp['block']
     return None
