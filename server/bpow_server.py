@@ -92,7 +92,12 @@ class BpowServer(object):
         # Get all fields for client account
         stats = await self.database.hash_getall(f"client:{account}")
         # Convert fields to integer
-        stats = {k: int(v) for k,v in stats.items()}
+        for k,v in stats.items():
+            if k == 'total_paid':
+                v = float(v)
+            else:
+                v = int(v)
+
         # Add the block hash that got rewarded
         stats['block_rewarded'] = block_rewarded
         # Add payment factor
