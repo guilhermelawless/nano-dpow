@@ -60,7 +60,7 @@ def communicate_wallet(self, wallet_command) -> dict:
     except requests.exceptions.RequestException:
         return None
 
-def send(self, destination : str, amount_ban : float, uid : str) -> str:
+def send(destination : str, amount_ban : float) -> str:
     """Send amount to destination, return hash. None if failed"""
     expanded = float(amount_ban) * 100
     amount_raw = str(int(expanded) * (10 ** 27))
