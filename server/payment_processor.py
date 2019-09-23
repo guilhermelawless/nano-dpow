@@ -53,7 +53,7 @@ def setup_logger():
 
 setup_logger()
 
-def communicate_wallet(self, wallet_command) -> dict:
+def communicate_wallet(wallet_command) -> dict:
     try:
         r = requests.post(args.node, json=wallet_command, timeout=300)
         return r.json()
