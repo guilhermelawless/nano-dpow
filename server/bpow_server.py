@@ -164,8 +164,9 @@ class BpowServer(object):
             self.database.set_add(f"clients", client)
         )
 
-    async def block_arrival_handler(self, block_hash, account, previous):
+    async def block_arrival_handler(self, block_hash, account, previous, difficulty=None):
         should_precache = config.debug
+        difficulty = self.DEFAULT_WORK_DIFFICULTY if difficulty is None else difficulty
         previous_exists = None
         old_frontier = await self.database.get(f"account:{account}")
 
@@ -192,7 +193,7 @@ class BpowServer(object):
                 # Set work type precache
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", BpowServer.BLOCK_EXPIRY),
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{self.DEFAULT_WORK_DIFFICULTY}", qos=QOS_0)
+                self.mqtt.send("work/precache", f"{block_hash},{difficulty}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -217,6 +218,18 @@ class BpowServer(object):
             # previous might not exist - open block
             block_hash, account, previous = data['hash'], data['account'], ujson.loads(data['block']).get('previous', None)
             await self.block_arrival_handler(block_hash, account, previous)
+        except Exception as e:
+            logger.error(f"Unable to process block: {e}\nData:\n{data}")
+            logger.error(traceback.format_exc())
+        return web.Response()
+
+    @asyncio.coroutine
+    async def block_arrival_cb_handler_nano(self, request):
+        try:
+            data = await request.json(loads=ujson.loads)
+            # previous might not exist - open block
+            block_hash, account, previous = data['hash'], data['account'], ujson.loads(data['block']).get('previous', None)
+            await self.block_arrival_handler(block_hash, account, previous, difficulty='ffffffc000000000')
         except Exception as e:
             logger.error(f"Unable to process block: {e}\nData:\n{data}")
             logger.error(traceback.format_exc())
@@ -425,6 +438,7 @@ def main():
     if not config.use_websocket:
         app_blocks = web.Application(middlewares=[web.normalize_path_middleware()])
         app_blocks.router.add_post('/block/', server.block_arrival_cb_handler)
+        app_blocks.router.add_post('/nanoblock/', server.block_arrival_cb_handler_nano)
         handler_blocks = app_blocks.make_handler()
         coroutine_blocks = loop.create_server(handler_blocks, "127.0.0.1", 5040)
         server_blocks = loop.run_until_complete(coroutine_blocks)
