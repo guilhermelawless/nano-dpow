@@ -108,6 +108,7 @@ for client in clients:
     logger.info(f"Paying {payment_amount} to {client} for {should_be_credited} PoWs")
 
     if args.dry_run:
+        final_payment_sum += payment_amount
         logger.info("Dry run, not processing payment")
         continue
 
