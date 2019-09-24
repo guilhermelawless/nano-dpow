@@ -424,14 +424,14 @@ def main():
     app_blocks = None
     if not config.use_websocket:
         app_blocks = web.Application()
-        app_blocks.router.add_post('/block/', server.block_arrival_cb_handler)
+        app_blocks.router.add_post('/block', server.block_arrival_cb_handler)
         handler_blocks = app_blocks.make_handler()
         coroutine_blocks = loop.create_server(handler_blocks, "127.0.0.1", 5040)
         server_blocks = loop.run_until_complete(coroutine_blocks)
 
     # endpoint for a permanent connection to services via websockets
     app_ws = web.Application()
-    app_ws.router.add_get('/service_ws/', server.service_ws_handler)
+    app_ws.router.add_get('/service_ws', server.service_ws_handler)
     handler_ws = app_ws.make_handler()
     coroutine_ws = loop.create_server(handler_ws, "127.0.0.1", 5035)
     server_ws = loop.run_until_complete(coroutine_ws)
@@ -439,7 +439,7 @@ def main():
     # endpoint for checking if server is up
     app_upcheck = web.Application()
     upcheck_handler = lambda request: web.Response(text="up")
-    app_upcheck.router.add_get('/upcheck/', upcheck_handler)
+    app_upcheck.router.add_get('/upcheck', upcheck_handler)
     handler_upcheck = app_upcheck.make_handler()
     coroutine_upcheck = loop.create_server(handler_upcheck, "127.0.0.1", 5031)
     server_upcheck = loop.run_until_complete(coroutine_upcheck)
@@ -449,7 +449,7 @@ def main():
     app_services = web.Application()
     app_services.on_startup.append(startup)
     app_services.on_cleanup.append(cleanup)
-    app_services.router.add_post('/service/', server.service_post_handler)
+    app_services.router.add_post('/service', server.service_post_handler)
     try:
         if config.web_path:
             web.run_app(app_services, host="127.0.0.1", port=5030, path=config.web_path)
