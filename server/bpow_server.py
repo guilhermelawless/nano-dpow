@@ -440,7 +440,7 @@ def main():
         app_blocks.router.add_post('/block/', server.block_arrival_cb_handler)
         app_blocks.router.add_post('/nanoblock/', server.block_arrival_cb_handler_nano)
         handler_blocks = app_blocks.make_handler()
-        coroutine_blocks = loop.create_server(handler_blocks, "127.0.0.1", 5040)
+        coroutine_blocks = loop.create_server(handler_blocks, "0.0.0.0", 5040)
         server_blocks = loop.run_until_complete(coroutine_blocks)
 
     # endpoint for a permanent connection to services via websockets
