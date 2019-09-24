@@ -288,7 +288,7 @@ class BpowServer(object):
             if work and work != BpowServer.WORK_PENDING:
                 work_type = "precache"
                 if difficulty:
-                    precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
+                    precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:], base_difficulty=BpowServer.DEFAULT_WORK_DIFFICULTY)
                     if precached_multiplier < BpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
