@@ -48,7 +48,6 @@ class WorkHandler(object):
         self.logger = logger
 
     async def start(self):
-        aiohttp.Client
         self.session = aiohttp.ClientSession(conn_timeout=1)
         try:
             requests.post(self.worker_uri, json={"action": "invalid"}, timeout=2).json()['error']
