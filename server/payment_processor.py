@@ -28,7 +28,7 @@ elif not Validations.validate_address(args.account):
     print("Invalid payout address specified")
     exit(1)
 
-MAX_PAYOUT_FACTOR = 0.1
+MAX_PAYOUT_FACTOR = 0.25
 
 payout_factor = r.get("bpow:paymentfactor")
 # There's a MAX_PAYOUT_FACTOR to avoid someone from fat fingering the change
