@@ -11,6 +11,7 @@
 | cancel/precache | Publish           | Subscribe       |
 | cancel/ondemand | Publish           | Subscribe       |
 | client/`address`| Publish           | Subscribe       |
+| service/`name`  | Publish           | Subscribe       |
 | heartbeat       | Publish           | Subscribe       |
 | statistics      | Publish           | Subscribe       |
 
@@ -99,6 +100,20 @@ The `block_rewarded` field contains the latest block for which the client's work
 
 The `payment_factor`field indicates how much the server is currently paying in BANANO for each accepted work unit.
 
+### service/$user_name
+
+These topics (one per service) are used by the server to push an update when a service has requested work.
+
+Message format:
+
+```csv
+block_hash,work_type
+```
+
+```csv
+0FAD765D873CF9412A4A651D072D3AB3262E4EDC6727516EE70A1B2ED58ADADE,precache
+```
+
 ### heartbeat
 
 This topic has an empty message, and is used to alert clients and dashboards that there is an issue with the server (when heartbeats stop arriving). A message is sent roughly every second.
@@ -118,10 +133,11 @@ Message format as example:
         "public":
         [
             {
-                "display": "Test Service",
-                "website": "test.dpow.org",
-                "precache": 213,
-                "ondemand": 1543
+                "user_name": "test_service",
+                "display":   "Test Service",
+                "website":   "test.dpow.org",
+                "precache":   213,
+                "ondemand":   1543
             },
             (...other public services...)
         ],
