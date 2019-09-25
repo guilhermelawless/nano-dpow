@@ -97,11 +97,14 @@ class BpowServer(object):
                 v = float(v)
             else:
                 v = int(v)
-
         # Add the block hash that got rewarded
         stats['block_rewarded'] = block_rewarded
         # Add payment factor
         stats['payment_factor'] = await self.database.get_payment_factor()
+        # Add service name if there is one
+        service_name = await self.database.get(f"serviceblock:{block_rewarded}")
+        if service_name is not None:
+            stats['service'] = service_name
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
@@ -192,6 +195,7 @@ class BpowServer(object):
                 self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY),
                 # Set work type precache
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", BpowServer.BLOCK_EXPIRY),
+                
                 # Send for precache
                 self.mqtt.send("work/precache", f"{block_hash},{difficulty}", qos=QOS_0)
             ]
@@ -283,6 +287,9 @@ class BpowServer(object):
             if work is None:
                 # Set incomplete work
                 await self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY)
+
+            service_display_name = await self.database.hash_get(f"service:{service}", "display")
+            await self.database.insert_expire(f"serviceblock:{block_hash}", service_display_name, 10)
 
             work_type = "ondemand"
             if work and work != BpowServer.WORK_PENDING:
