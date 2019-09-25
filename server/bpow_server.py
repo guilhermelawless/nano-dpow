@@ -101,10 +101,6 @@ class BpowServer(object):
         stats['block_rewarded'] = block_rewarded
         # Add payment factor
         stats['payment_factor'] = await self.database.get_payment_factor()
-        # Add service name if there is one
-        service_name = await self.database.get(f"serviceblock:{block_rewarded}")
-        if service_name is not None:
-            stats['service'] = service_name
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
@@ -288,9 +284,6 @@ class BpowServer(object):
                 # Set incomplete work
                 await self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY)
 
-            service_display_name = await self.database.hash_get(f"service:{service}", "display")
-            await self.database.insert_expire(f"serviceblock:{block_hash}", service_display_name, 10)
-
             work_type = "ondemand"
             if work and work != BpowServer.WORK_PENDING:
                 work_type = "precache"
@@ -358,6 +351,8 @@ class BpowServer(object):
 
             # Increase the work type counter for this service
             asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
+            # Send stats update to services topic
+            asyncio.ensure_future(self.mqtt.send(f"service/{service}", f"{block_hash},{work_type}", qos=QOS_0))
 
             response = {'work': work, 'hash': block_hash}
             logger.info(f"Request handled for {service} -> {work_type}")

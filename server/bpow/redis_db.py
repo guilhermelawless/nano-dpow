@@ -44,6 +44,7 @@ class BpowRedis(object):
             info["ondemand"] = int(info["ondemand"])
             is_public = info.pop("public") == SERVICE_PUBLIC
             if is_public:
+                info['user_name'] = service
                 public_services.append(info)
             else:
                 private_services["count"] += 1
