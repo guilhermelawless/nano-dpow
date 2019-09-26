@@ -427,21 +427,21 @@ def main():
     # use websockets or callback from the node
     app_blocks = None
     if not config.use_websocket:
-        app_blocks = web.Application()
+        app_blocks = web.Application(middlewares=[web.normalize_path_middleware()])
         app_blocks.router.add_post('/block/', server.block_arrival_cb_handler)
         handler_blocks = app_blocks.make_handler()
         coroutine_blocks = loop.create_server(handler_blocks, "0.0.0.0", 5040)
         server_blocks = loop.run_until_complete(coroutine_blocks)
 
     # endpoint for a permanent connection to services via websockets
-    app_ws = web.Application()
+    app_ws = web.Application(middlewares=[web.normalize_path_middleware()])
     app_ws.router.add_get('/service_ws/', server.service_ws_handler)
     handler_ws = app_ws.make_handler()
     coroutine_ws = loop.create_server(handler_ws, "0.0.0.0", 5035)
     server_ws = loop.run_until_complete(coroutine_ws)
 
     # endpoint for checking if server is up and if blocks are being received
-    app_upcheck = web.Application()
+    app_upcheck = web.Application(middlewares=[web.normalize_path_middleware()])
     upcheck_handler = lambda request: web.Response(text="up")
     app_upcheck.router.add_get('/upcheck/', upcheck_handler)
     app_upcheck.router.add_get('/upcheck/blocks/', server.upcheck_blocks_handler)
@@ -451,7 +451,7 @@ def main():
 
 
     # endpoint for service requests
-    app_services = web.Application()
+    app_services = web.Application(middlewares=[web.normalize_path_middleware()])
     app_services.on_startup.append(startup)
     app_services.on_cleanup.append(cleanup)
     app_services.router.add_post('/service/', server.service_post_handler)
