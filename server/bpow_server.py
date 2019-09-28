@@ -14,6 +14,7 @@ from collections import defaultdict
 from asyncio_throttle import Throttler
 from aiohttp import web, WSMsgType
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
+from random import randint
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
@@ -104,15 +105,7 @@ class BpowServer(object):
         # Send feedback to client
         await self.mqtt.send(f"client/{account}", ujson.dumps(stats))
 
-    async def client_handler(self, topic, content):
-        try:
-            # Content is expected as CSV block,work,client
-            block_hash, work, client = content.split(',')
-            # logger.info(f"Message {block_hash} {work} {client}")
-        except Exception:
-            # logger.warn(f"Could not parse message: {e}")
-            return
-
+    async def client_work_handler(self, topic, block_hash, work, client):
         # Check if work is needed
         # - Block is removed from DB once account frontier that contained it is updated
         # - Block corresponding value is WORK_PENDING if work is pending
@@ -163,6 +156,86 @@ class BpowServer(object):
             self.database.set_add(f"clients", client)
         )
 
+    async def set_client_priorty(self, topics, client):
+        # Retrieve the total powa assigned to each topic
+        lowest_queue = {'precache': 0, 'ondemand': 0}
+        lowest_powa = {'precache': 0, 'ondemand': 0}
+        desired_work = topics[1]
+
+        # Find the lowest powa for each work type
+        for x in range(1, 5):
+            queue_powa = self.database.hash_getmany(f"queue_powa-{x}", "precache", "ondemand")
+
+            if queue_powa['precache'] is not None:
+                if (lowest_powa['precache'] == 0 and lowest_queue['precache'] == 0) \
+                        or lowest_powa['precache'] > float(queue_powa['precache']):
+                    lowest_queue['precache'] = x
+                    lowest_powa['precache'] = float(queue_powa['precache'])
+            if queue_powa['ondemand'] is not None:
+                if (lowest_powa['ondemand'] == 0 and lowest_queue['ondemand'] == 0) \
+                        or lowest_powa['ondemand'] > float(queue_powa['ondemand']):
+                    lowest_queue['ondemand'] = x
+                    lowest_powa['ondemand'] = float(queue_powa['ondemand'])
+
+        # Set the new values for the powa
+        stats = await self.database.hash_getall(f"client:{client}")
+        return_dict = {}
+        if desired_work == 'precache' or desired_work == 'any':
+            if 'precache' in stats:
+                queue_powa = self.database.hash_getmany(f"queue_powa-{lowest_queue['precache']}", "precache", "ondemand")
+                if queue_powa['precache'] is not None:
+                    new_powa_data = {'precache': (float(queue_powa['precache']) + float(stats['precache']))}
+                else:
+                    new_powa_data = {'precache': float(stats['precache'])}
+                if queue_powa['ondemand'] is not None:
+                    new_powa_data['ondemand'] = queue_powa['ondemand']
+                else:
+                    new_powa_data['ondemand'] = 0
+                self.database.hash_setmany(f"queue_powa-{lowest_queue['precache']}", new_powa_data)
+            return_dict['precache'] = lowest_queue['precache']
+        if desired_work == 'ondemand' or desired_work == 'any':
+            if 'ondemand' in stats:
+                queue_powa = self.database.hash_getmany(f"queue_powa-{lowest_queue['ondemand']}", "precache", "ondemand")
+                if queue_powa['ondemand'] is not None:
+                    new_powa_data = {'ondemand': (float(queue_powa['ondemand']) + float(stats['ondemand']))}
+                else:
+                    new_powa_data = {'ondemand': float(stats['ondemand'])}
+                if queue_powa['precache'] is not None:
+                    new_powa_data['precache'] = queue_powa['precache']
+                else:
+                    new_powa_data['precache'] = 0
+                self.database.hash_setmany(f"queue_powa-{lowest_queue['ondemand']}", new_powa_data)
+            return_dict['ondemand'] = lowest_queue['ondemand']
+
+        # Send the queue to the client
+        asyncio.ensure_future(self.mqtt.send(f"priority_response/{client}", ujson.dumps(return_dict), qos=QOS_0))
+
+    async def client_handler(self, topic, content):
+        topics = topic.split('/')
+        try:
+            # Content is expected as CSV block,work,client
+            content_split = content.split(",")
+            if len(content_split) == 3:
+                block_hash = content_split[0]
+                work = content_split[1]
+                client = content_split[2]
+            else:
+                client = content_split[0]
+            # logger.info(f"Message {block_hash} {work} {client}")
+        except Exception:
+            # logger.warn(f"Could not parse message: {e}")
+            return
+
+        if topic[0] == 'result':
+            await self.client_work_handler(topic, block_hash, work, client)
+            return
+        elif topic[0] == 'get_priority':
+            await self.set_client_priorty(topics, client)
+            return        
+
+    async def get_random_queue():
+        return randint(1, 4)
+
     async def block_arrival_handler(self, block_hash, account, previous, difficulty=None):
         should_precache = config.debug
         difficulty = self.DEFAULT_WORK_DIFFICULTY if difficulty is None else difficulty
@@ -193,7 +266,8 @@ class BpowServer(object):
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", BpowServer.BLOCK_EXPIRY),
                 
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{difficulty}", qos=QOS_0)
+                queue = self.get_random_queue()
+                self.mqtt.send(f"work/precache/{queue}", f"{block_hash},{difficulty}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -317,7 +391,8 @@ class BpowServer(object):
                     difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY
 
                     # Ask for work on demand
-                    await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
+                    queue = await self.get_random_queue()
+                    await self.mqtt.send(f"work/ondemand/{queue}", f"{block_hash},{difficulty}", qos=QOS_0)
 
                 timeout = data.get('timeout', 5)
                 try:

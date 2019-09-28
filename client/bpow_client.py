@@ -53,12 +53,19 @@ class BpowClient(object):
             }
         )
         self.work_handler = WorkHandler(config.worker, self.client, send_work_result, work_server_error_callback, logger=logger)
+        self.priority = {}
         self.running = False
         self.server_online = False
 
     def handle_work(self, message):
         try:
-            work_type = message.topic.split('/')[-1]
+            topics = message.topic.split('/')
+            work_type = topics[1]
+            # If the message comes from a numbered queue, check if it's a priority queue or not.
+            if len(topics) == 3:
+                priority = (self.priority[work_type] == topics[2])
+            else:
+                priority = False
             content = message.data.decode("utf-8")
             block_hash, difficulty = content.split(',')
         except Exception as e:
@@ -66,7 +73,7 @@ class BpowClient(object):
             return
 
         if len(block_hash) == 64:
-            asyncio.ensure_future(self.work_handler.queue_work(work_type, block_hash, difficulty), loop=loop)
+            asyncio.ensure_future(self.work_handler.queue_work(work_type, block_hash, difficulty, priority), loop=loop)
         else:
             logger.warn(f"Invalid hash {block_hash}")
 
@@ -123,6 +130,8 @@ So far you've earned {paid_pending} BANANO towards your next reward
             self.handle_stats(message)
         elif "heartbeat" == message.topic:
             self.handle_heartbeat(message)
+        elif "priority" == message.topic:
+            self.handle_priority(message)
 
     async def setup(self):
         try:
@@ -143,6 +152,8 @@ So far you've earned {paid_pending} BANANO towards your next reward
             return False
         self.server_online = True
 
+        await self.get_priority()
+
         # Subscribe to all necessary topics
         await self.subscribe()
 
@@ -157,14 +168,34 @@ So far you've earned {paid_pending} BANANO towards your next reward
     async def subscribe(self):
         if config.work_type == "any":
             desired_work = "#"
+            await self.client.subscribe([(f"work/#", QOS_0)])
         else:
             desired_work = config.work_type # precache or ondemand
-
+            await self.client.subscribe([(f"work/{desired_work}/#", QOS_0)])
+            
         await self.client.subscribe([
-            (f"work/{desired_work}", QOS_0),
             (f"cancel/{desired_work}", QOS_1),
             (f"client/{config.payout}", QOS_1)
         ])
+
+    async def get_priority(self):
+        # subscribe to the topic the server will respond on with the priority queue
+        await self.client.subscribe([(f"priority_response/{config.payout}", QOS_0)])
+        # send a message to the server to provide you the priority queue
+        await self.client.publish(f"get_priority/{config.work_type}", str.encode(f"{config.payout}", 'utf-8'), qos=QOS_0)
+        try:
+            message = await self.client.deliver_message(timeout=2)
+            await self.handle_priority(message)
+        except asyncio.TimeoutError:
+            logger.error("Timeout while assigning priority for client")
+
+    async def handle_priority(self, message):
+        # user receives a topic in the message to prioritize, set that as their priority queue.
+        prio = json.loads(message.data)
+        if 'ondemand' in prio:
+            self.priority['ondemand'] = prio['ondemand']
+        if 'precache' in prio:
+            self.priority['precache'] = prio['precache']
 
     async def close(self):
         self.running = False

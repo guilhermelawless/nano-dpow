@@ -43,6 +43,7 @@ class WorkHandler(object):
         self.error_callback = error_callback
         self.worker_uri = f"http://{worker_uri}"
         self.work_queue = WorkQueue()
+        self.priority_queue = WorkQueue()
         self.work_ongoing = set()
         self.session = None
         self.logger = logger
@@ -60,11 +61,18 @@ class WorkHandler(object):
 
     async def queue_cancel(self, block_hash: str):
         # If it's queued up work, simply remove it
+        # First check work queue (75% chance probability), then priority
         try:
             difficulty, work_type = self.work_queue.pop(block_hash)
             self.logger.info(f"REMOVED {work_type}/{block_hash[:10]}")
             return
         except KeyError:
+            try:
+                difficulty, work_type = self.work_queue.pop(block_hash)
+                self.logger.info(f"REMOVED {work_type}/{block_hash[:10]}")
+                return
+            except KeyError:
+                pass
             pass
 
         # Can also be work that is currently being done
@@ -80,26 +88,37 @@ class WorkHandler(object):
                 self.logger.error(f"Work handler queue_cancel error: {e}")
 
 
-    async def queue_work(self, work_type: str, block_hash: str, difficulty: str):
-        if block_hash in self.work_queue:
+    async def queue_work(self, work_type: str, block_hash: str, difficulty: str, priority: bool):
+        if block_hash in self.work_queue or block_hash in self.priority_queue:
             self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (in queue)")
             return
         if block_hash in self.work_ongoing:
             self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
             return
         try:
-            await self.work_queue.put((block_hash, difficulty, work_type))
-            self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
+            # If the work came from the priority topic, add to the priority queue.
+            if priority:
+                await self.priority_queue.put((block_hash, difficulty, work_type))
+                self.logger.info(f"PRIORITY QUEUED {work_type}/{block_hash[:10]}")
+            else:
+                await self.work_queue.put((block_hash, difficulty, work_type))
+                self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
         except Exception as e:
             self.logger.error(f"Work handler queue_work error: {e}")
-            self.work_queue.try_remove(item)
+            if priority:
+                self.priority_queue.try_remove(item)
+            else:
+                self.work_queue.try_remove(item)
             await self.error_callback()
 
     @asyncio.coroutine
     async def loop(self):
         while 1:
             try:
-                block_hash, (difficulty, work_type) = await self.work_queue.get()
+                if not self.priority_queue.empty():
+                    block_hash, (difficulty, work_type) = await self.priority_queue.get()
+                else:
+                    block_hash, (difficulty, work_type) = await self.work_queue.get()
                 self.logger.info(f"WORK {work_type}/{block_hash[:10]}...")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={

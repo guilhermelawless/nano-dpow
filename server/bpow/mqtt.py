@@ -29,7 +29,8 @@ class BpowMQTT(object):
 
     async def subscribe(self):
         await self.connection.subscribe([
-            ("result/#", QOS_0)
+            ("result/#", QOS_0),
+            ("get_priority/#", QOS_0)
         ])
 
     async def close(self):

@@ -102,9 +102,18 @@ class BpowRedis(object):
         arr = await self.pool.execute('hgetall', key)
         return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
 
-    async def hash_getmany(self, key:str, *fields, decode=True):
-        arr = await self.pool.execute('hmget', key, *fields)
-        return {fields[i]: arr[i].decode("utf-8") for i in range(len(arr))}
+    async def hash_getmany(self, key, *fields, decode=True):
+        arr = self.pool.execute('hmget', key, *fields)
+        return_dict = {}
+        for i in range(len(arr)):
+            if arr[i] is not None:
+                return_dict[fields[i]] = arr[i].decode("utf-8")
+            else:
+                return_dict[fields[i]] = 0
+        return return_dict
+
+    async def hash_setmany(self, key, *fields):
+        return await self.pool.execute('hmset', key, *fields)
 
     async def hash_get(self, key: str, field: str):
         return await self.pool.execute('hget', key, field)
