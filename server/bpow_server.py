@@ -156,14 +156,8 @@ class BpowServer(object):
             self.database.set_add(f"clients", client)
         )
 
-    async def set_client_priorty(self, topics, client):
-        # Retrieve the total powa assigned to each topic
-        lowest_queue = {'precache': 0, 'ondemand': 0}
-        lowest_powa = {'precache': 0, 'ondemand': 0}
-        desired_work = topics[1]
-
-        # Find the lowest powa for each work type
-        for x in range(1, 5):
+    async def get_lowest_queues(self, num_queues):
+        for x in range(1, num_queues):
             queue_powa = self.database.hash_getmany(f"queue_powa-{x}", "precache", "ondemand")
 
             if queue_powa['precache'] is not None:
@@ -176,65 +170,92 @@ class BpowServer(object):
                         or lowest_powa['ondemand'] > float(queue_powa['ondemand']):
                     lowest_queue['ondemand'] = x
                     lowest_powa['ondemand'] = float(queue_powa['ondemand'])
+        return lowest_powa, lowest_queue
+
+    async def set_client_priority(self, topics, client):
+        # Retrieve the total powa assigned to each topic
+        lowest_queue = {'precache': 0, 'ondemand': 0}
+        lowest_powa = {'precache': 0, 'ondemand': 0}
+        desired_work = topics[1]
+        return_dict = {}
+        new_connections = {}
+        assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
+        stats = await self.database.hash_getall(f"client:{client}")
+
+        # Find the lowest powa for each work type
+        lowest_queue, lowest_queue = self.get_lowest_queues(5)
 
         # Set the new values for the powa
-        stats = await self.database.hash_getall(f"client:{client}")
-        return_dict = {}
         if desired_work == 'precache' or desired_work == 'any':
-            if 'precache' in stats:
-                queue_powa = self.database.hash_getmany(f"queue_powa-{lowest_queue['precache']}", "precache", "ondemand")
-                if queue_powa['precache'] is not None:
-                    new_powa_data = {'precache': (float(queue_powa['precache']) + float(stats['precache']))}
-                else:
-                    new_powa_data = {'precache': float(stats['precache'])}
-                if queue_powa['ondemand'] is not None:
-                    new_powa_data['ondemand'] = queue_powa['ondemand']
-                else:
-                    new_powa_data['ondemand'] = 0
-                self.database.hash_setmany(f"queue_powa-{lowest_queue['precache']}", new_powa_data)
+            # If there is already an assigned queue, set lowest_queue equal to it
+            # this also means the hashrate for the client has been accounted for, so do not increment total powa
+            if 'precache' in assigned_queues:
+                lowest_queue['precache'] = assigned_queues['precache']
+            # If it's not assigned and the client has accepted powa, add it to the queue total
+            elif 'precache' in stats:
+                self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
+            
+            # Set the new connection and return values   
+            new_connections['precache'] = lowest_queue['precache']
             return_dict['precache'] = lowest_queue['precache']
+
         if desired_work == 'ondemand' or desired_work == 'any':
-            if 'ondemand' in stats:
-                queue_powa = self.database.hash_getmany(f"queue_powa-{lowest_queue['ondemand']}", "precache", "ondemand")
-                if queue_powa['ondemand'] is not None:
-                    new_powa_data = {'ondemand': (float(queue_powa['ondemand']) + float(stats['ondemand']))}
-                else:
-                    new_powa_data = {'ondemand': float(stats['ondemand'])}
-                if queue_powa['precache'] is not None:
-                    new_powa_data['precache'] = queue_powa['precache']
-                else:
-                    new_powa_data['precache'] = 0
-                self.database.hash_setmany(f"queue_powa-{lowest_queue['ondemand']}", new_powa_data)
+            # If there is already an assigned queue, set lowest_queue equal to it
+            # this also means the hashrate for the client has been accounted for, so do not increment total powa
+            if 'ondemand' in assigned_queues:
+                lowest_queue['ondemand'] = assigned_queues['ondemand']
+            # If it's not assigned and the client has accepted powa, add it to the queue total
+            elif 'ondemand' in stats:
+                self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
+
+            # Set the new connection and return values
+            new_connections['ondemand'] = lowest_queue['ondemand']
             return_dict['ondemand'] = lowest_queue['ondemand']
+
+        # Increment the number of client connections to handle multiple clients from same payout
+        self.database.hash_increment(f"client-connections:{client}", "connections")
+
+        # Set the priority queues in redis
+        self.database.hash_setmany(f"client-connections:{client}", new_connections)
 
         # Send the queue to the client
         asyncio.ensure_future(self.mqtt.send(f"priority_response/{client}", ujson.dumps(return_dict), qos=QOS_0))
 
     async def client_handler(self, topic, content):
         topics = topic.split('/')
-        try:
-            # Content is expected as CSV block,work,client
-            content_split = content.split(",")
-            if len(content_split) == 3:
-                block_hash = content_split[0]
-                work = content_split[1]
-                client = content_split[2]
-            else:
-                client = content_split[0]
-            # logger.info(f"Message {block_hash} {work} {client}")
-        except Exception:
-            # logger.warn(f"Could not parse message: {e}")
-            return
 
         if topic[0] == 'result':
+            block_hash, work, client = content.split(",")
             await self.client_work_handler(topic, block_hash, work, client)
             return
         elif topic[0] == 'get_priority':
-            await self.set_client_priorty(topics, client)
-            return        
+            client = content
+            await self.set_client_priority(topics, client)
+            return
+        elif topic[0] == 'disconnect':
+            client = topics[1]
+            priority_data = json.loads(content)
+            await self.client_disconnect_handler(topics, client, priority_data)
 
-    async def get_random_queue():
+    async def get_random_queue(self):
         return randint(1, 4)
+
+    async def client_disconnect_handler(topics, client, priority_data):
+        assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
+        # First, decrement the number of connections
+        stats = await self.database.hash_getall(f"client:{client}")
+        
+        # If it is the last connection, remove powa from queue and delete the key.
+        if assigned_queues['connections'] == 1:
+            if 'precache' in priority_data:
+                await self.database.hash_increment(f"queue_powa-{priority_data['precache']}", 'precache', (-1*int(stats['precache'])))
+            if 'ondemand' in priority_data:
+                await self.database.hash_increment(f"queue_powa-{priority_data['ondemand']}", 'ondemand', (-1*int(stats['ondemand'])))
+            self.database.delete(f"client-connections:{client}")
+        else:
+            # If not, decrement the connection and leave powa assigned.
+            await self.database.hash_increment(f"client-connections:{client}", 'connections', -1)
+
 
     async def block_arrival_handler(self, block_hash, account, previous, difficulty=None):
         should_precache = config.debug
@@ -257,6 +278,7 @@ class BpowServer(object):
 
         # Only precache for accounts in the system (or debug mode)
         if should_precache:
+            queue = self.get_random_queue()
             aws = [
                 # Account frontier update
                 self.database.insert_expire(f"account:{account}", block_hash, BpowServer.ACCOUNT_EXPIRY),
@@ -264,9 +286,7 @@ class BpowServer(object):
                 self.database.insert_expire(f"block:{block_hash}", BpowServer.WORK_PENDING, BpowServer.BLOCK_EXPIRY),
                 # Set work type precache
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", BpowServer.BLOCK_EXPIRY),
-                
                 # Send for precache
-                queue = self.get_random_queue()
                 self.mqtt.send(f"work/precache/{queue}", f"{block_hash},{difficulty}", qos=QOS_0)
             ]
             if old_frontier:

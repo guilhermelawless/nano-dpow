@@ -4,6 +4,7 @@ config = BpowClientConfig()
 
 from sys import argv
 import json
+import ujson
 import asyncio
 import math
 from time import time
@@ -130,7 +131,7 @@ So far you've earned {paid_pending} BANANO towards your next reward
             self.handle_stats(message)
         elif "heartbeat" == message.topic:
             self.handle_heartbeat(message)
-        elif "priority" == message.topic:
+        elif "priority_response" == message.topic:
             self.handle_priority(message)
 
     async def setup(self):
@@ -199,6 +200,7 @@ So far you've earned {paid_pending} BANANO towards your next reward
 
     async def close(self):
         self.running = False
+        await self.client.publish(f"disconnect/{config.payout}", ujson.dumps(self.priority)))
         if self.client:
             await self.client.disconnect()
         if self.work_handler:
