@@ -4,7 +4,6 @@ config = BpowClientConfig()
 
 from sys import argv
 import json
-import ujson
 import asyncio
 import math
 from time import time
@@ -200,7 +199,7 @@ So far you've earned {paid_pending} BANANO towards your next reward
 
     async def close(self):
         self.running = False
-        await self.client.publish(f"disconnect/{config.payout}", ujson.dumps(self.priority)))
+        await self.client.publish(f"disconnect/{config.payout}", json.dumps(self.priority).encode('utf-8'))
         if self.client:
             await self.client.disconnect()
         if self.work_handler:
