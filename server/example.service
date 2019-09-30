@@ -1,0 +1,15 @@
+[Unit]
+Description=BOOM POW Server
+After=network.target
+
+[Service]
+Type=simple
+User=dpow
+Group=www-data
+#EnvironmentFile=/path/to/boompow/server/.env
+WorkingDirectory=/path/to/boompow/server
+ExecStart=/path/to/boompow/server/venv/bin/python bpow_server.py --web_path /tmp/.dpow.sock --mqtt_uri mqtt://{MQTT_USER}:{MQTT_PW}@localhost:1883
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
