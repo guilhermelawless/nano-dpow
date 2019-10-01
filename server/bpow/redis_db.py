@@ -3,6 +3,7 @@
 import asyncio
 import aioredis
 
+
 SERVICE_PUBLIC = "Y"
 
 class BpowRedis(object):
@@ -103,7 +104,7 @@ class BpowRedis(object):
         return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
 
     async def hash_getmany(self, key, *fields, decode=True):
-        arr = self.pool.execute('hmget', key, *fields)
+        arr = await self.pool.execute('hmget', key, *fields)
         return_dict = {}
         for i in range(len(arr)):
             if arr[i] is not None:
@@ -112,8 +113,10 @@ class BpowRedis(object):
                 return_dict[fields[i]] = 0
         return return_dict
 
-    async def hash_setmany(self, key, *fields):
-        return await self.pool.execute('hmset', key, *fields)
+    async def hash_setmany(self, key, fields):
+        for fkey in fields:
+            await self.pool.execute('hmset', key, fkey, fields[fkey])
+        return
 
     async def hash_get(self, key: str, field: str):
         return await self.pool.execute('hget', key, field)

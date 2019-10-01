@@ -4,7 +4,6 @@ config = BpowClientConfig()
 
 from sys import argv
 import json
-import ujson
 import asyncio
 import math
 from time import time
@@ -187,20 +186,25 @@ So far you've earned {paid_pending} BANANO towards your next reward
         try:
             message = await self.client.deliver_message(timeout=2)
             await self.handle_priority(message)
+            logger.info(f"priorties set: {self.priority}")
         except asyncio.TimeoutError:
             logger.error("Timeout while assigning priority for client")
 
     async def handle_priority(self, message):
         # user receives a topic in the message to prioritize, set that as their priority queue.
         prio = json.loads(message.data)
+        logger.info(f"Got priorty response: {prio}")
         if 'ondemand' in prio:
             self.priority['ondemand'] = prio['ondemand']
         if 'precache' in prio:
             self.priority['precache'] = prio['precache']
 
     async def close(self):
+        prio = json.dumps(self.priority)
+        logger.info(f"disconnecting.  Sending message to disconnect/{config.payout} - {prio}")
         self.running = False
-        await self.client.publish(f"disconnect/{config.payout}", ujson.dumps(self.priority)))
+        await self.client.publish(f"disconnect/{config.payout}", str.encode(prio, 'utf-8'))
+        logger.info("message sent.")
         if self.client:
             await self.client.disconnect()
         if self.work_handler:
@@ -216,8 +220,7 @@ So far you've earned {paid_pending} BANANO towards your next reward
             self.message_loop(),
             self.heartbeat_check_loop(),
             self.work_handler.loop()
-        )
-
+            )
     @asyncio.coroutine
     async def heartbeat_check_loop(self):
         while self.running:
@@ -258,8 +261,11 @@ if __name__ == "__main__":
     bpow_client = BpowClient()
     try:
         loop.run_until_complete(bpow_client.run())
-        loop.close()
     except KeyboardInterrupt:
+        asyncio.run(bpow_client.close())
         pass
     except Exception as e:
         print(e)
+    finally:
+        loop.close()
+

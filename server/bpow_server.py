@@ -157,9 +157,11 @@ class BpowServer(object):
         )
 
     async def get_lowest_queues(self, num_queues):
+        logger.info("getting lowest queue")
+        lowest_queue = {'precache': 0, 'ondemand': 0}
+        lowest_powa = {'precache': 0, 'ondemand': 0}
         for x in range(1, num_queues):
-            queue_powa = self.database.hash_getmany(f"queue_powa-{x}", "precache", "ondemand")
-
+            queue_powa = await self.database.hash_getmany(f"queue_powa-{x}", "precache", "ondemand")
             if queue_powa['precache'] is not None:
                 if (lowest_powa['precache'] == 0 and lowest_queue['precache'] == 0) \
                         or lowest_powa['precache'] > float(queue_powa['precache']):
@@ -170,6 +172,7 @@ class BpowServer(object):
                         or lowest_powa['ondemand'] > float(queue_powa['ondemand']):
                     lowest_queue['ondemand'] = x
                     lowest_powa['ondemand'] = float(queue_powa['ondemand'])
+        logger.info("returning lowest powa and queue")
         return lowest_powa, lowest_queue
 
     async def set_client_priority(self, topics, client):
@@ -181,25 +184,28 @@ class BpowServer(object):
         new_connections = {}
         assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
         stats = await self.database.hash_getall(f"client:{client}")
+        logger.info(f"got assigned queues and stats: {stats}")
 
         # Find the lowest powa for each work type
-        lowest_queue, lowest_queue = self.get_lowest_queues(5)
-
+        lowest_powa, lowest_queue = await self.get_lowest_queues(5)
+        logger.info(f"lowest queue: {lowest_queue} - lowest powa: {lowest_powa}")
         # Set the new values for the powa
         if desired_work == 'precache' or desired_work == 'any':
+            logger.info("incrementing precache powa")
             # If there is already an assigned queue, set lowest_queue equal to it
             # this also means the hashrate for the client has been accounted for, so do not increment total powa
             if 'precache' in assigned_queues:
                 lowest_queue['precache'] = assigned_queues['precache']
             # If it's not assigned and the client has accepted powa, add it to the queue total
             elif 'precache' in stats:
-                self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
+                await self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
             
             # Set the new connection and return values   
             new_connections['precache'] = lowest_queue['precache']
             return_dict['precache'] = lowest_queue['precache']
 
         if desired_work == 'ondemand' or desired_work == 'any':
+            logger.info("incrementing ondemand powa")
             # If there is already an assigned queue, set lowest_queue equal to it
             # this also means the hashrate for the client has been accounted for, so do not increment total powa
             if 'ondemand' in assigned_queues:
@@ -212,38 +218,45 @@ class BpowServer(object):
             new_connections['ondemand'] = lowest_queue['ondemand']
             return_dict['ondemand'] = lowest_queue['ondemand']
 
+        logger.info("incrementing client connections")
         # Increment the number of client connections to handle multiple clients from same payout
-        self.database.hash_increment(f"client-connections:{client}", "connections")
+        await self.database.hash_increment(f"client-connections:{client}", "connections")
 
+        logger.info(f"setting priority - client-connections:{client}: {new_connections}")
         # Set the priority queues in redis
-        self.database.hash_setmany(f"client-connections:{client}", new_connections)
+        await self.database.hash_setmany(f"client-connections:{client}", new_connections)
 
+        logger.info(f"responding: {return_dict}")
         # Send the queue to the client
         asyncio.ensure_future(self.mqtt.send(f"priority_response/{client}", ujson.dumps(return_dict), qos=QOS_0))
 
     async def client_handler(self, topic, content):
         topics = topic.split('/')
+        logger.info(f"client message: {content} - topic: {topic} - topics 0: {topics[0]}")
 
-        if topic[0] == 'result':
+        if topics[0] == 'result':
             block_hash, work, client = content.split(",")
             await self.client_work_handler(topic, block_hash, work, client)
             return
-        elif topic[0] == 'get_priority':
+        elif topics[0] == 'get_priority':
+            logger.info("getting priorty")
             client = content
             await self.set_client_priority(topics, client)
             return
-        elif topic[0] == 'disconnect':
+        elif topics[0] == 'disconnect':
             client = topics[1]
             priority_data = json.loads(content)
+            logger.info(f"disconnect received: {priority_data}")
             await self.client_disconnect_handler(topics, client, priority_data)
 
     async def get_random_queue(self):
         return randint(1, 4)
 
-    async def client_disconnect_handler(topics, client, priority_data):
+    async def client_disconnect_handler(self, topics, client, priority_data):
         assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
         # First, decrement the number of connections
         stats = await self.database.hash_getall(f"client:{client}")
+        logger.info(f"queues: {assigned_queues} - stats: {stats}")
         
         # If it is the last connection, remove powa from queue and delete the key.
         if assigned_queues['connections'] == 1:
