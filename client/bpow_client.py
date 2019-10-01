@@ -200,10 +200,8 @@ So far you've earned {paid_pending} BANANO towards your next reward
             self.priority['precache'] = prio['precache']
 
     async def close(self):
-        prio = json.dumps(self.priority)
-        logger.info(f"disconnecting.  Sending message to disconnect/{config.payout} - {prio}")
         self.running = False
-        await self.client.publish(f"disconnect/{config.payout}", str.encode(prio, 'utf-8'))
+        await self.client.publish(f"disconnect/{config.payout}", json.dumps(self.priority).encode('utf-8'))
         logger.info("message sent.")
         if self.client:
             await self.client.disconnect()
