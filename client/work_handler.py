@@ -68,8 +68,8 @@ class WorkHandler(object):
             return
         except KeyError:
             try:
-                difficulty, work_type = self.work_queue.pop(block_hash)
-                self.logger.info(f"REMOVED {work_type}/{block_hash[:10]}")
+                difficulty, work_type = self.priority_queue.pop(block_hash)
+                self.logger.info(f"PRIORITY REMOVED {work_type}/{block_hash[:10]}")
                 return
             except KeyError:
                 pass
