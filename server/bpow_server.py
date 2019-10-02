@@ -42,7 +42,7 @@ class BpowServer(object):
         self.work_futures = dict()
         self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=BpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
         self.database = BpowRedis("redis://localhost", loop)
-        self.mqtt = BpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
+        self.mqtt = BpowMQTT(config.mqtt_uri, loop, self.client_handler, self.database, logger=logger)
         if config.use_websocket:
             self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler, logger=logger)
         else:
@@ -55,6 +55,7 @@ class BpowServer(object):
         )
         if self.websocket:
             await self.websocket.setup()
+        loop.create_task(self.mqtt.client_check())
 
     async def close(self):
         await asyncio.gather(
@@ -198,7 +199,7 @@ class BpowServer(object):
                 lowest_queue['precache'] = assigned_queues['precache']
             # If it's not assigned and the client has accepted powa, add it to the queue total
             elif 'precache' in stats:
-                await self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
+                await self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", 'precache', int(stats['precache']))
             
             # Set the new connection and return values   
             new_connections['precache'] = lowest_queue['precache']
@@ -212,7 +213,7 @@ class BpowServer(object):
                 lowest_queue['ondemand'] = assigned_queues['ondemand']
             # If it's not assigned and the client has accepted powa, add it to the queue total
             elif 'ondemand' in stats:
-                self.database.hash_increment(f"queue_powa-{lowest_queue['precache']}", int(stats['precache']))
+                self.database.hash_increment(f"queue_powa-{lowest_queue['ondemand']}", 'ondemand', int(stats['ondemand']))
 
             # Set the new connection and return values
             new_connections['ondemand'] = lowest_queue['ondemand']
@@ -236,16 +237,21 @@ class BpowServer(object):
 
         if topics[0] == 'result':
             block_hash, work, client = content.split(",")
+            await self.database.insert_expire(f"client-lastaction:{client}", "connected", 10)
+            await self.database.set_add(f"client_list", client)
             await self.client_work_handler(topic, block_hash, work, client)
             return
         elif topics[0] == 'get_priority':
             logger.info("getting priorty")
             client = content
+            await self.database.insert_expire(f"client-lastaction:{client}", "connected", 10)
+            await self.database.set_add(f"client_list", client)
             await self.set_client_priority(topics, client)
             return
         elif topics[0] == 'disconnect':
             client = topics[1]
             priority_data = json.loads(content)
+            await self.database.set_remove('client_list', client)
             logger.info(f"disconnect received: {priority_data}")
             await self.client_disconnect_handler(topics, client, priority_data)
 
@@ -259,12 +265,12 @@ class BpowServer(object):
         logger.info(f"queues: {assigned_queues} - stats: {stats}")
         
         # If it is the last connection, remove powa from queue and delete the key.
-        if assigned_queues['connections'] == 1:
-            if 'precache' in priority_data:
+        if assigned_queues['connections'] == '1':
+            if 'precache' in priority_data and 'precache' in stats:
                 await self.database.hash_increment(f"queue_powa-{priority_data['precache']}", 'precache', (-1*int(stats['precache'])))
-            if 'ondemand' in priority_data:
+            if 'ondemand' in priority_data and 'ondemand' in stats:
                 await self.database.hash_increment(f"queue_powa-{priority_data['ondemand']}", 'ondemand', (-1*int(stats['ondemand'])))
-            self.database.delete(f"client-connections:{client}")
+            await self.database.delete(f"client-connections:{client}")
         else:
             # If not, decrement the connection and leave powa assigned.
             await self.database.hash_increment(f"client-connections:{client}", 'connections', -1)

@@ -25,6 +25,7 @@ WELCOME = f"""
 - Doing {config.work_type} work
 - Server at {config.server}
 - Work server at {config.worker}
+- TO EXIT: Press CTRL+C
 
 =============================
 
@@ -60,12 +61,15 @@ class BpowClient(object):
     def handle_work(self, message):
         try:
             topics = message.topic.split('/')
+            logger.info(f"work request - topics: {topics}")
             work_type = topics[1]
             # If the message comes from a numbered queue, check if it's a priority queue or not.
             if len(topics) == 3:
                 priority = (self.priority[work_type] == topics[2])
+                logger.info(f"is priority queue: {priorty}")
             else:
                 priority = False
+                logger.info("did not include queue")
             content = message.data.decode("utf-8")
             block_hash, difficulty = content.split(',')
         except Exception as e:
@@ -100,6 +104,8 @@ Overall {total_work_accepted} of your work units have been accepted by BoomPow (
 You have been paid for {paid_units} of those work units and have received {paid_amount} BANANO so far.
 
 So far you've earned {paid_pending} BANANO towards your next reward
+
+- TO EXIT: Press CTRL+C
 ---"""
         
 
@@ -219,6 +225,7 @@ So far you've earned {paid_pending} BANANO towards your next reward
             self.heartbeat_check_loop(),
             self.work_handler.loop()
             )
+
     @asyncio.coroutine
     async def heartbeat_check_loop(self):
         while self.running:
@@ -252,18 +259,15 @@ So far you've earned {paid_pending} BANANO towards your next reward
                     logger.info("Successfully reconnected")
                 except ConnectException as e:
                     logger.error(f"Connection exception: {e}")
-        await self.close()
-
 
 if __name__ == "__main__":
     bpow_client = BpowClient()
+    with handle_exit()
     try:
         loop.run_until_complete(bpow_client.run())
     except KeyboardInterrupt:
-        asyncio.run(bpow_client.close())
         pass
     except Exception as e:
         print(e)
     finally:
-        loop.close()
-
+        loop.run_until_complete(bpow_client.close())

@@ -127,3 +127,6 @@ class BpowRedis(object):
     async def set_members(self, key: str):
         members = await self.pool.execute('smembers', key)
         return {member.decode("utf-8") for member in members}
+
+    async def set_remove(self, key: str, value: str):
+        return await self.pool.execute('srem', key, value)

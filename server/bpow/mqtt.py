@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 
 import asyncio
+import json
 import logging
+from bpow.redis_db import BpowRedis
 from hbmqtt.client import MQTTClient, ClientException, ConnectException
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 
 class BpowMQTT(object):
 
-    def __init__(self, broker: str, loop, message_handle_cb, logger=logging):
+    def __init__(self, broker: str, loop, message_handle_cb, database, logger=logging):
 
         self.ok = True
         self.logger = logger
+        self.database = database
         self.connection = MQTTClient(
             loop=loop,
             config={
@@ -40,6 +43,21 @@ class BpowMQTT(object):
             await self.connection.disconnect()
         except:
             pass
+    
+    async def client_check(self):
+        while 1:
+            try:
+                client_list = await self.database.set_members('client_list')
+                if len(client_list) > 0:
+                    for client in client_list:
+                        client_actions = await self.database.get(f"client-lastaction:{client}")
+                        if client_actions is None:
+                            assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
+                            self.logger.info("sending callback")
+                            await self.callback(f'disconnect/{client}', json.dumps(assigned_queues))
+            except Exception as e:
+                self.logger.error(f"Exception in client_check: {e}")
+            await asyncio.sleep(60)
 
     async def send(self, topic: str, message: str, qos=QOS_0):
         try:
