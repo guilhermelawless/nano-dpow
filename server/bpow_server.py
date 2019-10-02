@@ -237,12 +237,15 @@ class BpowServer(object):
 
         if topics[0] == 'result':
             block_hash, work, client = content.split(",")
+            client_list = await self.database.set_members('client_list')
+            if client not in client_list:
+                await self.set_client_priority(topics, client)
             await self.database.insert_expire(f"client-lastaction:{client}", "connected", 10)
             await self.database.set_add(f"client_list", client)
             await self.client_work_handler(topic, block_hash, work, client)
             return
         elif topics[0] == 'get_priority':
-            logger.info("getting priorty")
+            logger.info("getting priority")
             client = content
             await self.database.insert_expire(f"client-lastaction:{client}", "connected", 10)
             await self.database.set_add(f"client_list", client)
