@@ -353,14 +353,15 @@ class BpowServer(object):
             raise InvalidRequest("Incorrect submission. Required information: user, api_key, hash")
 
         service, api_key = data['user'], data['api_key']
-        api_key = hash_key(api_key)
+        # api_key = hash_key(api_key)
 
         #Verify API Key
         db_key = await self.database.hash_get(f"service:{service}", "api_key")
+        logger.info("db key: {}".format(db_key))
         if db_key is None:
             logger.info(f"Received request with non existing service {service}")
             raise InvalidRequest("Invalid credentials")
-        elif not api_key == db_key:
+        elif not api_key == db_key.decode("utf-8"):
             logger.info(f"Received request with non existing api key {api_key} for service {service}")
             raise InvalidRequest("Invalid credentials")
 

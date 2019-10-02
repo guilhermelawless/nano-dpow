@@ -66,7 +66,7 @@ class BpowClient(object):
             # If the message comes from a numbered queue, check if it's a priority queue or not.
             if len(topics) == 3:
                 priority = (self.priority[work_type] == topics[2])
-                logger.info(f"is priority queue: {priorty}")
+                logger.info(f"is priority queue: {priority}")
             else:
                 priority = False
                 logger.info("did not include queue")
@@ -262,7 +262,6 @@ So far you've earned {paid_pending} BANANO towards your next reward
 
 if __name__ == "__main__":
     bpow_client = BpowClient()
-    with handle_exit()
     try:
         loop.run_until_complete(bpow_client.run())
     except KeyboardInterrupt:
