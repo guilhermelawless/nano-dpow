@@ -65,7 +65,7 @@ class BpowClient(object):
             work_type = topics[1]
             # If the message comes from a numbered queue, check if it's a priority queue or not.
             if len(topics) == 3:
-                priority = (self.priority[work_type] == topics[2])
+                priority = (self.priority[work_type] == str(topics[2]))
                 logger.info(f"is priority queue: {priority}")
             else:
                 priority = False
@@ -201,9 +201,9 @@ So far you've earned {paid_pending} BANANO towards your next reward
         prio = json.loads(message.data)
         logger.info(f"Got priorty response: {prio}")
         if 'ondemand' in prio:
-            self.priority['ondemand'] = prio['ondemand']
+            self.priority['ondemand'] = str(prio['ondemand'])
         if 'precache' in prio:
-            self.priority['precache'] = prio['precache']
+            self.priority['precache'] = str(prio['precache'])
 
     async def close(self):
         self.running = False
