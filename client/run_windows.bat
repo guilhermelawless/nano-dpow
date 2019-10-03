@@ -6,6 +6,12 @@ set payout_address="ban_1boompow14irck1yauquqypt7afqrh8b6bbu5r93pc6hgbqs7z6o99fr
 :: Desired work type, options are "ondemand", "precache", "any" (default)
 set desired_work_type="any"
 
+:: Send work_generate to the work server asynchronously
+:: May increase performance, but will use more system resources
+:: To enable change to:
+:: set async_mode="--async_mode"
+set async_mode=""
+
 :: Optional delay before starting a BoomPow client
 set start_delay_seconds=3
 
@@ -20,6 +26,6 @@ timeout %start_delay_seconds%
 
 echo.
 echo Starting BoomPow Client...
-python bpow_client.py --payout %payout_address% --work %desired_work_type%
+python bpow_client.py --payout %payout_address% --work %desired_work_type% %async_mode%
 
 pause
