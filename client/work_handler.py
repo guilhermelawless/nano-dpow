@@ -37,7 +37,7 @@ class WorkQueue(asyncio.Queue):
 
 
 class WorkHandler(object):
-    def __init__(self, worker_uri, mqtt_client, callback, error_callback, logger=logging):
+    def __init__(self, worker_uri, mqtt_client, callback, error_callback, async_mode, logger=logging):
         self.mqtt_client = mqtt_client
         self.callback = callback
         self.error_callback = error_callback
@@ -47,6 +47,7 @@ class WorkHandler(object):
         self.work_ongoing = set()
         self.session = None
         self.logger = logger
+        self.async_mode = async_mode
 
     async def start(self):
         self.session = aiohttp.ClientSession(conn_timeout=1)
@@ -95,13 +96,15 @@ class WorkHandler(object):
         if block_hash in self.work_ongoing:
             self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
             return
+        # A request consists of the hash, difficulty, and the type (ondemand/precache)
+        item = (block_hash, difficulty, work_type)
         try:
             # If the work came from the priority topic, add to the priority queue.
             if priority:
-                await self.priority_queue.put((block_hash, difficulty, work_type))
+                await self.priority_queue.put(item)
                 self.logger.info(f"PRIORITY QUEUED {work_type}/{block_hash[:10]}")
             else:
-                await self.work_queue.put((block_hash, difficulty, work_type))
+                await self.work_queue.put(item)
                 self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
         except Exception as e:
             self.logger.error(f"Work handler queue_work error: {e}")
@@ -111,36 +114,44 @@ class WorkHandler(object):
                 self.work_queue.try_remove(item)
             await self.error_callback()
 
+    async def process_queue_item(self, block_hash, difficulty, work_type):
+        self.work_ongoing.add(block_hash)
+        res = await self.session.post(self.worker_uri, json={
+            "action": "work_generate",
+            "hash": block_hash,
+            "difficulty": difficulty
+        })
+        try:
+            self.work_ongoing.remove(block_hash)
+        except:
+            # Removed by queue_cancel, no longer needed
+            self.logger.info(f"CANCEL {work_type}/{block_hash[:10]}...")
+            return
+        res_js = await res.json()
+        if 'work' in res_js:                    
+            await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
+            self.logger.info(f"SENT {work_type}/{block_hash[:10]}")
+        else:
+            error = res_js.get('error', None)
+            if error:
+                self.logger.error(f"Unexpected reply from work server: {error}")
+
     @asyncio.coroutine
     async def loop(self):
         while 1:
             try:
-                if not self.priority_queue.empty():
-                    block_hash, (difficulty, work_type) = await self.priority_queue.get()
+                # Fetch from priority queue first
+                try:
+                    block_hash, (difficulty, work_type) = await self.priority_queue.get_nowait()
                     self.logger.info(f"PRIO-WORK {work_type}/{block_hash[:10]}...")
-                else:
+                except asyncio.QueueEmpty:
                     block_hash, (difficulty, work_type) = self.work_queue.get_nowait()
                     self.logger.info(f"WORK {work_type}/{block_hash[:10]}...")
-                self.work_ongoing.add(block_hash)
-                res = await self.session.post(self.worker_uri, json={
-                    "action": "work_generate",
-                    "hash": block_hash,
-                    "difficulty": difficulty
-                })
-                try:
-                    self.work_ongoing.remove(block_hash)
-                except:
-                    # Removed by queue_cancel, no longer needed
-                    self.logger.info(f"CANCEL {work_type}/{block_hash[:10]}...")
-                    continue
-                res_js = await res.json()
-                if 'work' in res_js:                    
-                    await self.callback(self.mqtt_client, work_type, block_hash, res_js['work'])
-                    self.logger.info(f"SENT {work_type}/{block_hash[:10]}")
+
+                if self.async_mode:
+                    asyncio.ensure_future(self.process_queue_item(block_hash, difficulty, work_type))
                 else:
-                    error = res_js.get('error', None)
-                    if error:
-                        self.logger.error(f"Unexpected reply from work server: {error}")
+                    await self.process_queue_item(block_hash, difficulty, work_type)
             except asyncio.QueueEmpty:
                 await asyncio.sleep(1)
             except Exception as e:

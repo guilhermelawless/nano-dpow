@@ -24,7 +24,7 @@ WELCOME = f"""
 - Payouts to {config.payout}
 - Doing {config.work_type} work
 - Server at {config.server}
-- Work server at {config.worker}
+- Work server at {config.worker}, asynchronous requests {'enabled' if config.async_mode else 'disabled'}
 - TO EXIT: Press CTRL+C
 
 =============================
@@ -53,7 +53,7 @@ class BpowClient(object):
                 "default_qos": 0
             }
         )
-        self.work_handler = WorkHandler(config.worker, self.client, send_work_result, work_server_error_callback, logger=logger)
+        self.work_handler = WorkHandler(config.worker, self.client, send_work_result, work_server_error_callback, config.async_mode, logger=logger)
         self.priority = {}
         self.running = False
         self.server_online = False
