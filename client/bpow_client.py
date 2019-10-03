@@ -156,7 +156,10 @@ So far you've earned {paid_pending} BANANO towards your next reward
             return False
         self.server_online = True
 
-        await self.get_priority()
+        try:
+            await self.get_priority()
+        except:
+            pass
 
         # Subscribe to all necessary topics
         await self.subscribe()

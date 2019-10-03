@@ -111,41 +111,45 @@ class BpowServer(object):
         # Check if work is needed
         # - Block is removed from DB once account frontier that contained it is updated
         # - Block corresponding value is WORK_PENDING if work is pending
-        available = await self.database.get(f"block:{block_hash}")
-        if not available or available != BpowServer.WORK_PENDING:
-            return
-
-        work_type = await self.database.get(f"work-type:{block_hash}")
-        if not work_type:
-            work_type = "precache" # expired ?
-
-        difficulty = await self.database.get(f"block-difficulty:{block_hash}")
-
         try:
-            nanolib.validate_work(block_hash, work, difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY)
-        except nanolib.InvalidWork:
-            # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
-            return
+            available = await self.database.get(f"block:{block_hash}")
+            if not available or available != BpowServer.WORK_PENDING:
+                return
 
-        # Used as a lock - if value already existed, then some other client finished before
-        if not await self.database.insert_if_noexist_expire(f"block-lock:{block_hash}", '1', 5):
-            return
+            work_type = await self.database.get(f"work-type:{block_hash}")
+            if not work_type:
+                work_type = "precache" # expired ?
 
-        # Set work result in DB
-        await self.database.insert_expire(f"block:{block_hash}", work, BpowServer.BLOCK_EXPIRY)
+            difficulty = await self.database.get(f"block-difficulty:{block_hash}")
 
-        # Set Future result if in memory
-        try:
-            resulting_work = self.work_futures[block_hash]
-            if not resulting_work.done():
-                resulting_work.set_result(work)
-        except KeyError:
-            pass
+            try:
+                nanolib.validate_work(block_hash, work, difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY)
+            except nanolib.InvalidWork:
+                # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
+                return
+
+            # Used as a lock - if value already existed, then some other client finished before
+            if not await self.database.insert_if_noexist_expire(f"block-lock:{block_hash}", '1', 5):
+                return
+
+            # Set work result in DB
+            await self.database.insert_expire(f"block:{block_hash}", work, BpowServer.BLOCK_EXPIRY)
+
+            # Set Future result if in memory
+            try:
+                resulting_work = self.work_futures[block_hash]
+                if not resulting_work.done():
+                    resulting_work.set_result(work)
+            except KeyError:
+                pass
+            except Exception as e:
+                logger.error(f"Unknown error when setting work future: {e}")
+
+            # As we've got work now send cancel command to clients and do a stats update
+            await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_0)
+            logger.info(f"CANCEL: {work_type}/{block_hash}")
         except Exception as e:
-            logger.error(f"Unknown error when setting work future: {e}")
-
-        # As we've got work now send cancel command to clients and do a stats update
-        await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1)
+            logger.error(f"Unknown error when handling block {block_hash} - {e}")
 
         if not Validations.validate_address(client):
             await self.mqtt.send(f"client/{client}", ujson.dumps({"error": f"Work accepted but account {client} is invalid"}))
