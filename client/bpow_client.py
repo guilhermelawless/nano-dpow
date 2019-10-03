@@ -61,12 +61,10 @@ class BpowClient(object):
     def handle_work(self, message):
         try:
             topics = message.topic.split('/')
-            logger.info(f"work request - topics: {topics}")
             work_type = topics[1]
             # If the message comes from a numbered queue, check if it's a priority queue or not.
             if len(topics) == 3:
                 priority = (self.priority[work_type] == str(topics[2]))
-                logger.info(f"is priority queue: {priority}")
             else:
                 priority = False
                 logger.info("did not include queue")
@@ -192,14 +190,12 @@ So far you've earned {paid_pending} BANANO towards your next reward
         try:
             message = await self.client.deliver_message(timeout=2)
             await self.handle_priority(message)
-            logger.info(f"priorties set: {self.priority}")
         except asyncio.TimeoutError:
             logger.error("Timeout while assigning priority for client")
 
     async def handle_priority(self, message):
         # user receives a topic in the message to prioritize, set that as their priority queue.
         prio = json.loads(message.data)
-        logger.info(f"Got priorty response: {prio}")
         if 'ondemand' in prio:
             self.priority['ondemand'] = str(prio['ondemand'])
         if 'precache' in prio:
@@ -208,7 +204,6 @@ So far you've earned {paid_pending} BANANO towards your next reward
     async def close(self):
         self.running = False
         await self.client.publish(f"disconnect/{config.payout}", json.dumps(self.priority).encode('utf-8'))
-        logger.info("message sent.")
         if self.client:
             await self.client.disconnect()
         if self.work_handler:

@@ -142,7 +142,6 @@ class WorkHandler(object):
                     if error:
                         self.logger.error(f"Unexpected reply from work server: {error}")
             except asyncio.QueueEmpty:
-                self.logger.error("both queues empty.  sleeping")
                 await asyncio.sleep(1)
             except Exception as e:
                 self.logger.error(f"Work handler loop error: {e}")
