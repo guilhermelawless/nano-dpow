@@ -96,13 +96,15 @@ class WorkHandler(object):
         if block_hash in self.work_ongoing:
             self.logger.debug(f"IGNORED {work_type}/{block_hash[:10]} (ongoing)")
             return
+        # A request consists of the hash, difficulty, and the type (ondemand/precache)
+        item = (block_hash, difficulty, work_type)
         try:
             # If the work came from the priority topic, add to the priority queue.
             if priority:
-                await self.priority_queue.put((block_hash, difficulty, work_type))
+                await self.priority_queue.put(item)
                 self.logger.info(f"PRIORITY QUEUED {work_type}/{block_hash[:10]}")
             else:
-                await self.work_queue.put((block_hash, difficulty, work_type))
+                await self.work_queue.put(item)
                 self.logger.info(f"QUEUED {work_type}/{block_hash[:10]}")
         except Exception as e:
             self.logger.error(f"Work handler queue_work error: {e}")
