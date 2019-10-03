@@ -117,9 +117,10 @@ class WorkHandler(object):
             try:
                 if not self.priority_queue.empty():
                     block_hash, (difficulty, work_type) = await self.priority_queue.get()
+                    self.logger.info(f"PRIO-WORK {work_type}/{block_hash[:10]}...")
                 else:
-                    block_hash, (difficulty, work_type) = await self.work_queue.get()
-                self.logger.info(f"WORK {work_type}/{block_hash[:10]}...")
+                    block_hash, (difficulty, work_type) = self.work_queue.get_nowait()
+                    self.logger.info(f"WORK {work_type}/{block_hash[:10]}...")
                 self.work_ongoing.add(block_hash)
                 res = await self.session.post(self.worker_uri, json={
                     "action": "work_generate",
@@ -140,6 +141,9 @@ class WorkHandler(object):
                     error = res_js.get('error', None)
                     if error:
                         self.logger.error(f"Unexpected reply from work server: {error}")
+            except asyncio.QueueEmpty:
+                self.logger.error("both queues empty.  sleeping")
+                await asyncio.sleep(1)
             except Exception as e:
                 self.logger.error(f"Work handler loop error: {e}")
                 await asyncio.sleep(5)

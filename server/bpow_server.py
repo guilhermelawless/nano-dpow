@@ -40,6 +40,7 @@ class BpowServer(object):
 
     def __init__(self):
         self.work_futures = dict()
+        self.next_queue = 1
         self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=BpowServer.MAX_SERVICE_REQUESTS_PER_SECOND*10, period=10))
         self.database = BpowRedis("redis://localhost", loop)
         self.mqtt = BpowMQTT(config.mqtt_uri, loop, self.client_handler, self.database, logger=logger)
@@ -239,6 +240,7 @@ class BpowServer(object):
             block_hash, work, client = content.split(",")
             client_list = await self.database.set_members('client_list')
             if client not in client_list:
+                logger.info(f"client {client} was disconnected, resetting their priorities")
                 await self.set_client_priority(topics, client)
             await self.database.insert_expire(f"client-lastaction:{client}", "connected", 10)
             await self.database.set_add(f"client_list", client)
@@ -258,8 +260,10 @@ class BpowServer(object):
             logger.info(f"disconnect received: {priority_data}")
             await self.client_disconnect_handler(topics, client, priority_data)
 
-    async def get_random_queue(self):
-        return randint(1, 4)
+    async def get_next_queue(self):
+        next_queue = self.next_queue
+        self.next_queue = self.next_queue % 4 + 1
+        return next_queue
 
     async def client_disconnect_handler(self, topics, client, priority_data):
         assigned_queues = await self.database.hash_getall(f"client-connections:{client}")
@@ -267,16 +271,17 @@ class BpowServer(object):
         stats = await self.database.hash_getall(f"client:{client}")
         logger.info(f"queues: {assigned_queues} - stats: {stats}")
         
-        # If it is the last connection, remove powa from queue and delete the key.
-        if assigned_queues['connections'] == '1':
-            if 'precache' in priority_data and 'precache' in stats:
-                await self.database.hash_increment(f"queue_powa-{priority_data['precache']}", 'precache', (-1*int(stats['precache'])))
-            if 'ondemand' in priority_data and 'ondemand' in stats:
-                await self.database.hash_increment(f"queue_powa-{priority_data['ondemand']}", 'ondemand', (-1*int(stats['ondemand'])))
-            await self.database.delete(f"client-connections:{client}")
-        else:
-            # If not, decrement the connection and leave powa assigned.
-            await self.database.hash_increment(f"client-connections:{client}", 'connections', -1)
+        if 'connections' in assigned_queues:
+            # If it is the last connection, remove powa from queue and delete the key.
+            if assigned_queues['connections'] == '1':
+                if 'precache' in priority_data and 'precache' in stats:
+                    await self.database.hash_increment(f"queue_powa-{priority_data['precache']}", 'precache', (-1*int(stats['precache'])))
+                if 'ondemand' in priority_data and 'ondemand' in stats:
+                    await self.database.hash_increment(f"queue_powa-{priority_data['ondemand']}", 'ondemand', (-1*int(stats['ondemand'])))
+                await self.database.delete(f"client-connections:{client}")
+            else:
+                # If not, decrement the connection and leave powa assigned.
+                await self.database.hash_increment(f"client-connections:{client}", 'connections', -1)
 
 
     async def block_arrival_handler(self, block_hash, account, previous, difficulty=None):
@@ -300,7 +305,7 @@ class BpowServer(object):
 
         # Only precache for accounts in the system (or debug mode)
         if should_precache:
-            queue = self.get_random_queue()
+            queue = self.get_next_queue()
             aws = [
                 # Account frontier update
                 self.database.insert_expire(f"account:{account}", block_hash, BpowServer.ACCOUNT_EXPIRY),
@@ -434,7 +439,7 @@ class BpowServer(object):
                     difficulty = difficulty or self.DEFAULT_WORK_DIFFICULTY
 
                     # Ask for work on demand
-                    queue = await self.get_random_queue()
+                    queue = await self.get_next_queue()
                     await self.mqtt.send(f"work/ondemand/{queue}", f"{block_hash},{difficulty}", qos=QOS_0)
 
                 timeout = data.get('timeout', 5)
