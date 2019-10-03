@@ -142,7 +142,7 @@ class WorkHandler(object):
             try:
                 # Fetch from priority queue first
                 try:
-                    block_hash, (difficulty, work_type) = await self.priority_queue.get_nowait()
+                    block_hash, (difficulty, work_type) = self.priority_queue.get_nowait()
                     self.logger.info(f"PRIO-WORK {work_type}/{block_hash[:10]}...")
                 except asyncio.QueueEmpty:
                     block_hash, (difficulty, work_type) = self.work_queue.get_nowait()
