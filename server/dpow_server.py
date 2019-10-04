@@ -145,7 +145,7 @@ class DpowServer(object):
             logger.error(f"Unknown error when setting work future: {e}")
 
         # As we've got work now send cancel command to clients and do a stats update
-        await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_1)
+        await self.mqtt.send(f"cancel/{work_type}", block_hash, qos=QOS_0)
 
         try:
             nanolib.validate_account_id(client)
