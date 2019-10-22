@@ -4,6 +4,8 @@ from aiohttp import web, WSMsgType
 from asyncio_throttle import Throttler
 from collections import defaultdict
 from time import time
+import os
+import stat
 import nanolib
 import uvloop
 import asyncio
@@ -459,7 +461,9 @@ def main():
     try:
         if config.web_path:
             # aiohttp does not allow setting group write permissions on the created socket by default, so a custom socket is created
-            web.run_app(app_services, host="0.0.0.0", port=5030, sock=get_socket(config.web_path))
+            sock = get_socket(config.web_path)
+            os.chmod(config.web_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            web.run_app(app_services, host="0.0.0.0", port=5030, sock=sock)
         else:
             web.run_app(app_services, host="0.0.0.0", port=5030)
     except KeyboardInterrupt:
