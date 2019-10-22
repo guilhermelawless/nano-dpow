@@ -7,3 +7,4 @@ websockets
 requests
 asyncio-throttle
 nanolib
+redis
