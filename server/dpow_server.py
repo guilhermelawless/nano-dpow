@@ -386,10 +386,10 @@ class DpowServer(object):
                 raise InvalidRequest("Bad request (not json)")
             request_id = data.get('id', None)
             response = await self.service_handler(data)
-        except ValueError as e:
-            response = dict(error="Bad request (not json)")
         except InvalidRequest as e:
             response = dict(error=e.reason)
+        except ValueError as e:
+            response = dict(error="Bad request (not json)")
         except RequestTimeout:
             response = dict(error="Timeout reached without work", timeout=True)
         except Exception as e:
