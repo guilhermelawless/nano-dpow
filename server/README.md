@@ -61,8 +61,8 @@ sudo systemctl restart mosquitto
 # Add and configure the service file
 sudo cp setup/systemd/dpow.service /etc/systemd/system/dpow.service && sudo vim /etc/systemd/system/dpow.service 
 
-# Start DPoW
-sudo systemctl start dpow
+# Eanble on startup and start DPoW
+sudo systemctl enable dpow && sudo systemctl start dpow
 ```
 
 View logs with `systemctl status dpow` and `cat /tmp/dpow.txt`
