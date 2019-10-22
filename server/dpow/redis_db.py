@@ -5,6 +5,7 @@ import aioredis
 
 SERVICE_PUBLIC = "Y"
 
+
 class DpowRedis(object):
 
     def __init__(self, server, loop):
@@ -40,18 +41,18 @@ class DpowRedis(object):
                 private_services["precache"] += info["precache"]
                 private_services["ondemand"] += info["ondemand"]
         return dict(
-            services = {
+            services={
                 "public": public_services,
                 "private": private_services
             },
-            work = {
+            work={
                 "precache": int(precache_total),
                 "ondemand": int(on_demand_total)
             }
         )
 
     async def insert(self, key: str, value: str):
-        return await self.pool.execute('set', key, value )
+        return await self.pool.execute('set', key, value)
 
     async def insert_expire(self, key: str, value: str, seconds: int):
         return await self.pool.execute('setex', key, seconds, value)
@@ -89,7 +90,7 @@ class DpowRedis(object):
         arr = await self.pool.execute('hgetall', key)
         return {arr[i].decode("utf-8"): arr[i+1].decode("utf-8") for i in range(0, len(arr)-1, 2)}
 
-    async def hash_getmany(self, key:str, *fields, decode=True):
+    async def hash_getmany(self, key: str, *fields, decode=True):
         arr = await self.pool.execute('hmget', key, *fields)
         return {fields[i]: arr[i].decode("utf-8") for i in range(len(arr))}
 
