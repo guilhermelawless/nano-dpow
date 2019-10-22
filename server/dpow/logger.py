@@ -2,6 +2,7 @@ import sys
 import logging
 from logging.handlers import WatchedFileHandler, TimedRotatingFileHandler
 
+
 def get_logger():
     logger = logging.getLogger("dpow")
     logging.basicConfig(level=logging.INFO)

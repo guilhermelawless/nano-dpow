@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-from dpow import *
-config = DpowConfig() # takes a while to --help if this goes after imports
-
-import traceback
-import sys
-import ujson
-import datetime
-import hashlib
-import asyncio
-import uvloop
-import nanolib
-from time import time
-from collections import defaultdict
-from asyncio_throttle import Throttler
-from aiohttp import web, WSMsgType
 from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
+from aiohttp import web, WSMsgType
+from asyncio_throttle import Throttler
+from collections import defaultdict
+from time import time
+import nanolib
+import uvloop
+import asyncio
+import hashlib
+import datetime
+import ujson
+import sys
+import traceback
+from dpow import *
+config = DpowConfig()  # takes a while to --help if this goes after imports
+
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 loop = asyncio.get_event_loop()
@@ -30,11 +30,11 @@ def hash_key(x: str):
 
 class DpowServer(object):
     WORK_PENDING = "0"
-    BLOCK_EXPIRY = 4*30*24*60*60 # approximately 4 months
-    ACCOUNT_EXPIRY = 365*24*60*60 # approximately 1 year
+    BLOCK_EXPIRY = 4*30*24*60*60  # approximately 4 months
+    ACCOUNT_EXPIRY = 365*24*60*60  # approximately 1 year
     DIFFICULTY_EXPIRY = 2*60
     MAX_DIFFICULTY_MULTIPLIER = 5.0
-    FORCE_ONDEMAND_THRESHOLD = 0.8 # <= 1
+    FORCE_ONDEMAND_THRESHOLD = 0.8  # <= 1
     MAX_SERVICE_REQUESTS_PER_SECOND = 10
 
     def __init__(self):
@@ -93,7 +93,7 @@ class DpowServer(object):
         # Get all fields for client account
         stats = await self.database.hash_getall(f"client:{account}")
         # Convert fields to integer
-        stats = {k: int(v) for k,v in stats.items()}
+        stats = {k: int(v) for k, v in stats.items()}
         # Add the block hash that got rewarded
         stats['block_rewarded'] = block_rewarded
         # Send feedback to client
@@ -117,12 +117,12 @@ class DpowServer(object):
 
         work_type = await self.database.get(f"work-type:{block_hash}")
         if not work_type:
-            work_type = "precache" # expired ?
+            work_type = "precache"  # expired ?
 
         difficulty = await self.database.get(f"block-difficulty:{block_hash}")
 
         try:
-            nanolib.validate_work(block_hash, work, difficulty = difficulty or nanolib.work.WORK_DIFFICULTY)
+            nanolib.validate_work(block_hash, work, difficulty=difficulty or nanolib.work.WORK_DIFFICULTY)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
@@ -196,7 +196,7 @@ class DpowServer(object):
                 aws.append(self.database.delete(f"block:{old_frontier}"))
             elif previous_exists:
                 aws.append(self.database.delete(f"block:{previous}"))
-            await asyncio.gather (*aws)
+            await asyncio.gather(*aws)
 
     async def block_arrival_ws_handler(self, data):
         try:
@@ -226,7 +226,7 @@ class DpowServer(object):
         service, api_key = data['user'], data['api_key']
         api_key = hash_key(api_key)
 
-        #Verify API Key
+        # Verify API Key
         db_key = await self.database.hash_get(f"service:{service}", "api_key")
         if db_key is None:
             logger.info(f"Received request with non existing service {service}")
@@ -259,9 +259,10 @@ class DpowServer(object):
             if difficulty:
                 difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
                 if difficulty_multiplier > DpowServer.MAX_DIFFICULTY_MULTIPLIER:
-                    raise InvalidRequest(f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
+                    raise InvalidRequest(
+                        f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(DpowServer.MAX_DIFFICULTY_MULTIPLIER)} ( {DpowServer.MAX_DIFFICULTY_MULTIPLIER} multiplier )")
 
-            #Check if hash in redis db, if so return work
+            # Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")
 
             if work is None:
@@ -387,6 +388,8 @@ class DpowServer(object):
             response = await self.service_handler(data)
         except InvalidRequest as e:
             response = dict(error=e.reason)
+        except ValueError as e:
+            response = dict(error="Bad request (not json)")
         except RequestTimeout:
             response = dict(error="Timeout reached without work", timeout=True)
         except Exception as e:
@@ -404,6 +407,7 @@ class DpowServer(object):
         else:
             ellapsed = time() - self.last_block
             return web.Response(text=f"{ellapsed:.2f}")
+
 
 def main():
     server = DpowServer()
@@ -442,13 +446,12 @@ def main():
 
     # endpoint for checking if server is up and if blocks are being received
     app_upcheck = web.Application(middlewares=[web.normalize_path_middleware()])
-    upcheck_handler = lambda request: web.Response(text="up")
+    def upcheck_handler(request): return web.Response(text="up")
     app_upcheck.router.add_get('/upcheck/', upcheck_handler)
     app_upcheck.router.add_get('/upcheck/blocks/', server.upcheck_blocks_handler)
     handler_upcheck = app_upcheck.make_handler()
     coroutine_upcheck = loop.create_server(handler_upcheck, "0.0.0.0", 5031)
     server_upcheck = loop.run_until_complete(coroutine_upcheck)
-
 
     # endpoint for service requests
     app_services = web.Application(middlewares=[web.normalize_path_middleware()])
@@ -457,7 +460,9 @@ def main():
     app_services.router.add_post('/service/', server.service_post_handler)
     try:
         if config.web_path:
-            web.run_app(app_services, host="0.0.0.0", port=5030, path=config.web_path)
+            # aiohttp does not allow setting group write permissions on the created socket by default, so a custom socket is created
+            sock = get_socket(config.web_path)
+            web.run_app(app_services, host="0.0.0.0", port=5030, sock=sock)
         else:
             web.run_app(app_services, host="0.0.0.0", port=5030)
     except KeyboardInterrupt:
@@ -474,6 +479,7 @@ def main():
             remaining_tasks = asyncio.Task.all_tasks()
             loop.run_until_complete(asyncio.wait_for(asyncio.gather(*remaining_tasks), timeout=10))
             loop.close()
+
 
 if __name__ == "__main__":
     main()

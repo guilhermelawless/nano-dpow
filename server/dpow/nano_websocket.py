@@ -7,7 +7,7 @@ import logging
 import traceback
 
 
-def subscription(topic: str, ack: bool=False, options: dict=None):
+def subscription(topic: str, ack: bool = False, options: dict = None):
     d = {"action": "subscribe", "topic": topic, "ack": ack}
     if options is not None:
         d["options"] = options

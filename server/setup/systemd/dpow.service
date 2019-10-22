@@ -1,0 +1,20 @@
+[Unit]
+Description=Nano DPoW Server
+After=network.target mosquitto.service redis-server.service
+
+[Service]
+# Change to your path
+WorkingDirectory=/home/dpow/nano-dpow/server
+# Change to your Mosquitto {MQTT_PW} for user dpowserver
+Environment="MQTT_SECRET_URI=mqtt://dpowserver:{MQTT_PW}@localhost:1883"
+# Change to your path
+ExecStart=/home/dpow/nano-dpow/server/dpow_server.py --web_path /tmp/.dpow.sock
+Restart=on-failure
+Type=simple
+# Change to your user, or create a dpow user
+User=dpow
+# Leave as www-data so that the domain socket has correct permissions
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
