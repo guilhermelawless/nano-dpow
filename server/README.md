@@ -93,8 +93,8 @@ Highly recommended - secure the server with [CertBot](https://certbot.eff.org/in
 # Reload nginx to start the server
 sudo systemctl restart nginx
 
-# Should return "up" if the setup is correct and DPoW is running
-curl https://{DNS_HERE}/upcheck/
+# Should return {"error":"Bad request (not json)"} if the setup is correct and DPoW is running
+curl -d "test" https://{DNS_HERE}/service/
 ```
 
 ### Cleanup
