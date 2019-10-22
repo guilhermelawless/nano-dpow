@@ -1,4 +1,6 @@
 import argparse
+from os import environ
+
 
 class DpowConfig(object):
 
@@ -15,5 +17,5 @@ class DpowConfig(object):
         self.web_path = args.web_path
         self.use_websocket = args.use_websocket
         self.websocket_uri = args.websocket_uri
-        self.mqtt_uri = args.mqtt_uri
+        self.mqtt_uri = environ.get('MQTT_SECRET_URI', args.mqtt_uri)
         self.debug = args.debug
