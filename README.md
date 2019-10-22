@@ -1,25 +1,61 @@
 # Nano DPoW
 
-Welcome to the Distributed Proof of Work (DPoW) service hub. The DPoW system allows any user to support the Nano community services by computing the required proof of work for transactions.
+<img src="static/logo.png" align="center" width="500" alt="DPoW"/></p>
+
+Welcome to the Distributed Proof of Work (DPoW) system. The DPoW system allows any user to support Nano community services by computing the required proof of work for transactions.
 
 DPoW has helped reduce operating costs of community projects, such as faucets, tipping bots, and wallets. As a reward for helping, clients get occasional Nano payouts.
 
-## Documentation
+## Why does this exist
+
+In the [Nano](https://nano.org) protocol, every [block](https://medium.com/nano-education/nano-how-2-blocks-and-lattices-c0ccd417bd5a) must contain a small [proof of work](https://medium.com/nano-education/nano-how-4-proof-of-work-474bf20fc7d) to be confirmed by the network. While a desktop with a modern graphics card can easily and quickly compute this proof, the process can require significant resources from a server and mobile devices. Services often need to scale quickly when there is an uptick in usage, and on-demand scalable solutions based on GPUs are not available given the time-to-deploy requirements.
+
+DPoW provides a **hub between services and clients who are happy to provide their resources**, in return for small payouts. Consequently, services save significantly on operating costs to operate on the Nano network.
+
+## How does it work
+
+<img src="static/flow.png" align="center" width="500" alt="DPoW"/></p>
+
+The image above outlines the flow of messages within the system. Services request a proof of work for a specific block (hash) from the server. The server broadcasts a request using the low-latency MQTT protocol. The first worker (client) to return valid work is rewarded, and immediately a message is sent so other clients know they can cancel the ongoing computation. Meanwhile, the work is returned to the service.
+
+## Using DPoW
+
+### Documentation
 
 You can read more about the DPoW [message specification](docs/specification.md).
 
-## Running a work client
+### Running a work client
 
 Read more on the [client documentation](client/README.md) page.
 
-## Using DPoW for your service
+### Requesting work for your service
 
 Read more on the [service documentation](service/README.md) page.
 
 Please contact us on The Nano Center [discord server](https://discord.nanocenter.org) for further assistance.
 
-## Running your own server
+### Running your own server
 
 Read more on the [server documentation](server/README.md) page.
 
 We have made efforts to make it easier for anyone to run a DPoW server for themselves. If you need any assistance, please use the [discord server](https://discord.nanocenter.org) or Github issues page.
+
+## Resources
+
+### Projects using DPoW
+
+- [NanoSpeed](http://nanospeed.live/) - a place to try out Nano in seconds
+- [Nanovault](http://nanovault.io/) - a light web wallet with Ledger support
+- [Natrium](http://natrium.io/) - a light mobile wallet
+- [Nano-Faucet](http://nano-faucet.org/) - a place to get some Nano, instantly
+- [@nanotipbot](http://nanotipbot.com/) - tip other people on Twitter with Nano
+- [Nano Tipper](http://reddittipbot.com/) - tip bot for Reddit
+- And [more](https://dpow.nanocenter.org/), some service information is kept private
+
+### DPoW servers deployed
+
+- [BoomPoW](https://bpow.banano.cc/) - used by Banano, has contributed some improvements to DPoW
+
+### Alternative approaches
+
+- [Delegated Proof of Work](https://anarkrypto.github.io/Delegated-Proof-of-Work/) is a P2P protocol which allows users to trustlessly request work from others. It is more inefficient than DPoW, as it requires two blocks for each request, but removes the middleman (server) which is a central point of failure of the system.
