@@ -3,6 +3,8 @@ import json
 from time import perf_counter
 
 host = "dpow.nanocenter.org"
+user = 'dpowinterface'
+password = None
 works = dict()
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -36,18 +38,24 @@ def on_message(client, userdata, msg):
     elif 'statistics' in msg.topic:
         print("Statistics update:\n\n{}".format(contents))
 
+if __name__ == "__main__":
+    if not password:
+        print('Change the password at the top of this file')
+    else:
+        client = mqtt.Client()
+        client.on_connect = on_connect
+        client.on_message = on_message
 
-client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
+        client.username_pw_set('dpowinterface', password=password)
+        client.connect(host, 1883)
 
-client.username_pw_set('dpowinterface', password='wGTLbH4PcYniENL5ffHvck')
-client.connect(host, 1883)
-
-client.subscribe("work/#")
-client.subscribe("result/#")
-client.subscribe("cancel/#")
-client.subscribe("statistics")
-#client.subscribe("heartbeat")
-print("Subscribed")
-client.loop_forever()
+        client.subscribe("work/#")
+        client.subscribe("result/#")
+        client.subscribe("cancel/#")
+        client.subscribe("statistics")
+        #client.subscribe("heartbeat")
+        print("Subscribed")
+        try:
+            client.loop_forever()
+        except KeyboardInterrupt:
+            pass
