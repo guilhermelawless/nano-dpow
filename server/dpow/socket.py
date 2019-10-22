@@ -26,4 +26,5 @@ def get_socket(path: str):
         sock.close()
         raise
 
+    os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IROTH | stat.S_IXOTH)
     return sock
