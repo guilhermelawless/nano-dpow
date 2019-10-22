@@ -459,7 +459,7 @@ def main():
     try:
         if config.web_path:
             # aiohttp does not allow setting group write permissions on the created socket by default, so a custom socket is created
-            web.run_app(app_services, host="0.0.0.0", port=5030, sock=socket.get_socket(config.web_path))
+            web.run_app(app_services, host="0.0.0.0", port=5030, sock=get_socket(config.web_path))
         else:
             web.run_app(app_services, host="0.0.0.0", port=5030)
     except KeyboardInterrupt:
