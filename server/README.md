@@ -65,7 +65,7 @@ sudo cp setup/systemd/dpow.service /etc/systemd/system/dpow.service && sudo vim 
 sudo systemctl enable dpow && sudo systemctl start dpow
 ```
 
-View logs with `systemctl status dpow` and `cat /tmp/dpow.txt`
+View logs with `systemctl status dpow` and `cat /tmp/dpow.txt`.
 
 ### Open ports
 
@@ -87,7 +87,7 @@ sudo ln -s /etc/nginx/sites-available/dpow /etc/nginx/sites-enabled/
 sudo nginx -t
 ```
 
-Highly recommended - secure the server with [CertBot](https://certbot.eff.org/instructions).  Select Nginx on the dropdown and CertBot will make the required changes to the website
+Highly recommended - secure the server with [CertBot](https://certbot.eff.org/instructions).  Select Nginx on the dropdown and CertBot will make the required changes to the website.
 
 ```bash
 # Reload nginx to start the server
@@ -103,3 +103,18 @@ curl -d "test" https://{DNS_HERE}/service/
 # Remove dpow from sudoers
 sudo gpasswd -d dpow sudo
 ```
+
+## Usage
+
+If you followed the previous instructions, the server should be running as a service called `dpow`. The next steps are:
+
+1. Have clients using [dpow_client.py](../client/dpow_client.py) to use argument `--server mqtt://client:client@{DNS_HERE}:1883`
+2. Setup some services by using [services.py](scripts/services.py)
+  ```bash
+  # View instructions
+  python3 scripts/services.py --help
+
+  # Add a new service
+  python3 scripts/services.py --add test_service
+  ```
+3. Perform a request either using HTTPS POST or WSS. For HTTPS POST, see the [random_hash_request.py](../service/random_hash_request.py) example and edit the file to point the request to your server. If there are clients connected the request should be fulfilled, otherwise it will return a timeout error after 10 seconds.
