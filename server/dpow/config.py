@@ -8,7 +8,7 @@ class DpowConfig(object):
         parser = argparse.ArgumentParser()
         parser.add_argument('--web_path', type=str, default='', help='(Optional) Path to a local domain socket if a web server is configured to redirect to it')
         parser.add_argument('--websocket_uri', type=str, default='', help="The Node (v19+) websocket server URI, example ws://[::1]:7078")
-        parser.add_argument('--mqtt_uri', type=str, required=True, help="MQTT broker URI, alternatively set the MQTT_SECRET_URI environment variable, example mqtt://USER:PASSWORD@localhost:1883")
+        parser.add_argument('--mqtt_uri', type=str, default='', help="MQTT broker URI, alternatively set the MQTT_SECRET_URI environment variable, example mqtt://USER:PASSWORD@localhost:1883")
         parser.add_argument('--debug', action='store_true', help="Enable debugging mode (all blocks are precached)")
 
         parser.add_argument('--block_expiry', type=int, default=4*30*24*60*60, help='How long to keep block hashes in the database. In seconds, default 4 months')
