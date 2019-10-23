@@ -46,6 +46,7 @@ class DpowServer(object):
             self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler, logger=logger)
         else:
             self.websocket = None
+        self.base_difficulty = config.difficulty or nanolib.work.WORK_DIFFICULTY
 
     async def setup(self):
         await asyncio.gather(
@@ -121,7 +122,7 @@ class DpowServer(object):
         difficulty = await self.database.get(f"block-difficulty:{block_hash}")
 
         try:
-            nanolib.validate_work(block_hash, work, difficulty=difficulty or nanolib.work.WORK_DIFFICULTY)
+            nanolib.validate_work(block_hash, work, difficulty=difficulty or self.base_difficulty)
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
@@ -188,7 +189,7 @@ class DpowServer(object):
                 # Set work type precache
                 self.database.insert_expire(f"work-type:{block_hash}", "precache", config.block_expiry),
                 # Send for precache
-                self.mqtt.send("work/precache", f"{block_hash},{nanolib.work.WORK_DIFFICULTY}", qos=QOS_0)
+                self.mqtt.send("work/precache", f"{block_hash},{self.base_difficulty}", qos=QOS_0)
             ]
             if old_frontier:
                 # Work for old frontier no longer needed
@@ -250,16 +251,16 @@ class DpowServer(object):
                 raise InvalidRequest("Invalid hash")
             except nanolib.InvalidAccount:
                 raise InvalidRequest("Invalid account")
-            except ValueError:
-                raise InvalidRequest("Invalid difficulty")
             except nanolib.InvalidDifficulty:
                 raise InvalidRequest("Difficulty too low")
+            except ValueError:
+                raise InvalidRequest("Invalid difficulty")
 
             if difficulty:
-                difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty)
+                difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=self.base_difficulty)
                 if difficulty_multiplier > config.max_multiplier:
                     raise InvalidRequest(
-                        f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(config.max_multiplier)} ( {config.max_multiplier} multiplier )")
+                        f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(config.max_multiplier, base_difficulty=self.base_difficulty)} ( {config.max_multiplier} multiplier )")
 
             # Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")
@@ -272,7 +273,7 @@ class DpowServer(object):
             if work and work != DpowServer.WORK_PENDING:
                 work_type = "precache"
                 if difficulty:
-                    precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:])
+                    precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:], base_difficulty=self.base_difficulty)
                     if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
@@ -298,7 +299,7 @@ class DpowServer(object):
                         await self.database.insert_expire(f"block-difficulty:{block_hash}", difficulty, DpowServer.DIFFICULTY_EXPIRY)
 
                     # Base difficulty if not provided
-                    difficulty = difficulty or nanolib.work.WORK_DIFFICULTY
+                    difficulty = difficulty or self.base_difficulty
 
                     # Ask for work on demand
                     await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)

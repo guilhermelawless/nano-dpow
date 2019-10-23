@@ -15,6 +15,8 @@ class DpowConfig(object):
         parser.add_argument('--account_expiry', type=int, default=365*24*60*60, help='How long to keep accounts in the database, reset when the account frontier is updated. In seconds, default 1 year')
         parser.add_argument('--max_multiplier', type=float, default=5.0, help='The maximum multiplier from base difficulty that is accepted. Default 5.0')
         parser.add_argument('--throttle', type=float, default=10.0, help='The number of requests each service can do every second. Minimum 0.1, default 10.0')
+
+        parser.add_argument('--difficulty', type=str, default='', help='Difficulty threshold, example fffffc0000000000 . By default, the Nano main network threshold is used')
         args = parser.parse_args()
 
         self.web_path = args.web_path
@@ -26,3 +28,5 @@ class DpowConfig(object):
         self.account_expiry = args.account_expiry
         self.max_multiplier = args.max_multiplier
         self.throttle = args.throttle
+
+        self.difficulty = args.difficulty
