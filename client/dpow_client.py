@@ -2,6 +2,7 @@
 from config_parse import DpowClientConfig
 config = DpowClientConfig()
 
+import os
 from sys import argv
 import json
 import asyncio
@@ -12,8 +13,12 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 from logger import get_logger
 from work_handler import WorkHandler
 
+log_dir = 'logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
 loop = asyncio.get_event_loop()
-logger = get_logger()
+logger = get_logger(log_dir)
 
 
 WELCOME = f"""

@@ -12,8 +12,8 @@ class WatchedTimedRotatingFileHandler(TimedRotatingFileHandler, WatchedFileHandl
         self.reopenIfNeeded()
         super().emit(record)
 
-def get_logger():
-    log_file = "logs/dpow.txt"
+def get_logger(directory):
+    log_file = directory + "/dpow.txt"
     logger = logging.getLogger("dpow")
     logger.setLevel(logging.DEBUG)
     stream = logging.StreamHandler(stream=sys.stdout)
