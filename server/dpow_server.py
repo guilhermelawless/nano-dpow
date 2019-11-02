@@ -294,9 +294,6 @@ class DpowServer(object):
                 await self.database.insert_expire(f"work-type:{block_hash}", work_type, config.block_expiry)
 
                 if block_hash not in self.work_futures:
-                    # Create a Future to be set with work when complete
-                    self.work_futures[block_hash] = loop.create_future()
-
                     # If account is not provided, service runs a risk of the next work not being precached for
                     # There is still the possibility we recognize the need to precache based on the previous block
                     if account:
@@ -309,6 +306,9 @@ class DpowServer(object):
 
                     # Base difficulty if not provided
                     difficulty = difficulty or self.base_difficulty
+
+                    # Create a Future to be set with work when complete
+                    self.work_futures[block_hash] = loop.create_future()
 
                     # Ask for work on demand
                     await self.mqtt.send(f"work/ondemand", f"{block_hash},{difficulty}", qos=QOS_0)
