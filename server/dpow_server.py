@@ -126,6 +126,8 @@ class DpowServer(object):
         except nanolib.InvalidWork:
             # logger.debug(f"Client {client} provided invalid work {work} for {block_hash}")
             return
+        except:
+            return
 
         # Used as a lock - if value already existed, then some other client finished before
         if not await self.database.insert_if_noexist_expire(f"block-lock:{block_hash}", '1', 5):
@@ -223,7 +225,7 @@ class DpowServer(object):
         if not {'hash', 'user', 'api_key'} <= data.keys():
             raise InvalidRequest("Incorrect submission. Required information: user, api_key, hash")
 
-        service, api_key = data['user'], data['api_key']
+        service, api_key = data['user'], data.pop('api_key')
         api_key = hash_key(api_key)
 
         # Verify API Key
@@ -346,8 +348,15 @@ class DpowServer(object):
             # Increase the work type counter for this service
             asyncio.ensure_future(self.database.hash_increment(f"service:{service}", work_type))
 
+            # Final work validation
+            try:
+                nanolib.validate_work(block_hash, work, difficulty=difficulty or self.base_difficulty)
+            except nanolib.InvalidWork:
+                db_difficulty = await self.database.get(f"block-difficulty:{block_hash}")
+                logger.critical(f"Work could not be validated! Request difficulty {difficulty or self.base_difficulty} result difficulty {hex(nanolib.work.get_work_value(block_hash, work))[2:]} , hash {block_hash} work {work} type {work_type} DB difficulty {db_difficulty}")
+
             response = {'work': work, 'hash': block_hash}
-            logger.info(f"Request handled for {service} -> {work_type}")
+            logger.info(f"Request handled for {service} -> {work_type} : {data} : {work}")
 
         return response
 
