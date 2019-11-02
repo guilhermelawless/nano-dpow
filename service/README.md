@@ -62,7 +62,7 @@ Description of the fields:
 - **account** (optional, advised) - sending an account is not required, but helps DPoW precache work for the next transaction, which means it will be faster to reply the next time. It is possible, but with a possibility of failure, to precache even without this field
 - **id** (optional) - the server will reply to the request with the same id. Useful when doing multiple requests asynchronously
 - **timeout** (optional, default 5) - time in seconds (rounded down) before the server replies with a timeout error message
-- **difficulty** (optional) - hex string without `0x`. In case you need higher difficulty for your work. Maximum difficulty is 5x Nano base difficulty, minimum 1.0.
+- **difficulty** (optional) - hex string without `0x`. In case you need higher difficulty for your work. Maximum difficulty is 5x Nano base difficulty, minimum is Nano base difficulty.
 - **multiplier** (optional) - decimal number. Desired difficulty multiplier from Nano main network base difficulty. Overrides **difficulty**. Maximum is 5.0, minimum 1.0.
 
 #### Response
