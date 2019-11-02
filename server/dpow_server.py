@@ -239,6 +239,13 @@ class DpowServer(object):
             block_hash = data['hash']
             account = data.get('account', None)
             difficulty = data.get('difficulty', None)
+            multiplier = data.get('multiplier', None)
+            if multiplier:
+                try:
+                    multiplier = float(multiplier)
+                except:
+                    raise InvalidRequest(f"Multiplier must be a float")
+                difficulty = nanolib.work.derive_work_difficulty(multiplier, base_difficulty=self.base_difficulty)
 
             try:
                 block_hash = nanolib.validate_block_hash(block_hash)
@@ -257,10 +264,12 @@ class DpowServer(object):
                 raise InvalidRequest("Invalid difficulty")
 
             if difficulty:
-                difficulty_multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=self.base_difficulty)
-                if difficulty_multiplier > config.max_multiplier:
+                multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=self.base_difficulty)
+                if multiplier > config.max_multiplier:
                     raise InvalidRequest(
                         f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(config.max_multiplier, base_difficulty=self.base_difficulty)} ( {config.max_multiplier} multiplier )")
+                elif multiplier < 1.0:
+                    raise InvalidRequest(f"Difficulty too low. Minimum: 1.0")
 
             # Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")
@@ -274,11 +283,11 @@ class DpowServer(object):
                 work_type = "precache"
                 if difficulty:
                     precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:], base_difficulty=self.base_difficulty)
-                    if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * difficulty_multiplier:
+                    if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
                         await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, config.block_expiry)
-                        logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {difficulty_multiplier}")
+                        logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {multiplier}")
 
             if work_type == "ondemand":
                 # Set work type
