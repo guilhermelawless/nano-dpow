@@ -284,10 +284,12 @@ class DpowServer(object):
             if work and work != DpowServer.WORK_PENDING:
                 work_type = "precache"
                 if difficulty:
-                    precached_multiplier = nanolib.work.derive_work_multiplier(hex(nanolib.work.get_work_value(block_hash, work))[2:], base_difficulty=self.base_difficulty)
+                    precached_difficulty = nanolib.work.get_work_value(block_hash, work, as_hex=True)
+                    precached_multiplier = nanolib.work.derive_work_multiplier(precached_difficulty, base_difficulty=self.base_difficulty)
                     if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
+                        difficulty = precached_difficulty
                         await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, config.block_expiry)
                         logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {multiplier}")
 
@@ -353,7 +355,7 @@ class DpowServer(object):
                 nanolib.validate_work(block_hash, work, difficulty=difficulty or self.base_difficulty)
             except nanolib.InvalidWork:
                 db_difficulty = await self.database.get(f"block-difficulty:{block_hash}")
-                logger.critical(f"Work could not be validated! Request difficulty {difficulty or self.base_difficulty} result difficulty {hex(nanolib.work.get_work_value(block_hash, work))[2:]} , hash {block_hash} work {work} type {work_type} DB difficulty {db_difficulty}")
+                logger.critical(f"Work could not be validated! Request difficulty {difficulty or self.base_difficulty} result difficulty {nanolib.work.get_work_value(block_hash, work, as_hex=True)} , hash {block_hash} work {work} type {work_type} DB difficulty {db_difficulty}")
 
             response = {'work': work, 'hash': block_hash}
             logger.info(f"Request handled for {service} -> {work_type} : {data} : {work}")
