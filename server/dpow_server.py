@@ -289,9 +289,10 @@ class DpowServer(object):
                     if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * multiplier:
                         # Force ondemand since the precache difficulty is not close enough to requested difficulty
                         work_type = "ondemand"
-                        difficulty = precached_difficulty
                         await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, config.block_expiry)
                         logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {multiplier}")
+                    else:
+                        difficulty = precached_difficulty
 
             if work_type == "ondemand":
                 # Set work type
