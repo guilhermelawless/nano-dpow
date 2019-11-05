@@ -2,7 +2,6 @@
 
 <img src="static/logo.png" align="right" width="320" alt="DPoW"/></p>
 
-![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m782968217-ac095ffc11ff71ab5c8c6472)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.nanocenter.org)
 
 Welcome to the Distributed Proof of Work (DPoW) system. The DPoW system allows any user to support Nano community services by computing the required proof of work for transactions.
