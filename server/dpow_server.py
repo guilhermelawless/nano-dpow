@@ -365,7 +365,7 @@ class DpowServer(object):
 
     @asyncio.coroutine
     async def service_ws_handler(self, request):
-        ws = web.WebSocketResponse()
+        ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=2048)
         await ws.prepare(request)
 
         try:
