@@ -8,4 +8,5 @@ setup(name='nano_dpow_server',
       packages=['dpow'],
       package_dir={"dpow": "dpow"},
       package_data={"": ["../LICENSE"]},
+      python_requires='>=3.6'
      )
