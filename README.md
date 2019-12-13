@@ -56,6 +56,7 @@ We have made efforts to make it easier for anyone to run a DPoW server for thems
 
 ### DPoW servers deployed
 
+- [Nanocenter's DPoW](https://dpow.nanocenter.org/) - the original, improved
 - [BoomPoW](https://bpow.banano.cc/) - used by Banano, has contributed some improvements to DPoW
 
 ### Alternative approaches
