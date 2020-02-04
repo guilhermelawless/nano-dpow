@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 import re
+from uuid import uuid4
 
 def nano_valid_address(string):
     p = re.compile('^(nano|xrb)_[13]{1}[13456789abcdefghijkmnopqrstuwxyz]{59}$')
@@ -16,8 +17,8 @@ r = redis.StrictRedis(host="localhost", port=6379)
 clients = r.smembers("clients")
 clients = {c.decode("utf-8") for c in clients}
 
-snapshot = defaultdict(lambda: {"precache": 0, "ondemand": 0})
-payouts = defaultdict(lambda: {"precache": 0, "ondemand": 0})
+snapshot = defaultdict(lambda: {"precache": 0, "ondemand": 0, "id": str(uuid4())})
+payouts = defaultdict(lambda: {"precache": 0, "ondemand": 0, "id": str(uuid4())})
 
 for client in clients:
     if not nano_valid_address(client):

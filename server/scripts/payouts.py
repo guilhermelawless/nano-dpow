@@ -60,7 +60,13 @@ print("================================\n")
 
 # Compute the amounts
 payouts_ready = dict()
+payout_ids = dict()
 for client, details in payouts.items():
+    p_id = details.get('id', None)
+    if not p_id:
+        print("\n\n!!ABORT unique id not found in payout file")
+        exit(1)
+    payout_ids[client] = p_id
     precache = details.get('precache', 0)
     ondemand = details.get('ondemand', 0)
     print("\nClient {} did {} precache and {} ondemand".format(client, precache, ondemand))
@@ -84,7 +90,7 @@ if cont != "OFCOURSE":
 payout_info = dict()
 for client, amount_raw in payouts_ready.items():
     print("Sending {} to {}...".format(amount_raw, client), end=' -> ')
-    send_id = args.account + str(amount_raw)
+    send_id = payout_ids[client]
     try:
         response = node({"action": "send", "id": send_id, "wallet": args.wallet, "source": args.account, "destination": client, "amount": amount_raw})
         block = response['block']
