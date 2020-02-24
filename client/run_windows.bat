@@ -15,6 +15,12 @@ set start_delay_seconds=3
 
 
 
+
+IF %payout_address% == "nano_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7" (
+	echo [41mCAUTION: Payout address is not configured.[0m
+	timeout 10
+)
+
 IF NOT "%1" == "-noserver" (
 	set gpu_id=%gpu_id:"=%
 	echo Starting PoW Service minimized...
