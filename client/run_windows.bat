@@ -8,7 +8,7 @@ set payout_address="nano_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk
 set desired_work_type="any"
 
 :: CONFIG: GPU hardware identifier (set in the .vbs file if you plan on running the background version)
-set gpu_id="1:0"
+set gpu_id="0:0"
 
 :: CONFIG: Optional delay before starting a DPoW client
 set start_delay_seconds=3

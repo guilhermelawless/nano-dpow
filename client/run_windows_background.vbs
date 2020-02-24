@@ -1,6 +1,6 @@
 ' CONFIG: GPU hardware identifier
 Dim gpu_id
-gpu_id = "1:0"
+gpu_id = "0:0"
 
 
 
