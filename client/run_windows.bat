@@ -32,6 +32,6 @@ timeout %start_delay_seconds%
 
 echo.
 echo Starting DPoW Client...
-python dpow_client.py --payout %payout_address% --work %desired_work_type%
+py -3 dpow_client.py --payout %payout_address% --work %desired_work_type%
 
 pause
