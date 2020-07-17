@@ -9,7 +9,8 @@ from hbmqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
 class DpowMQTT(object):
 
     def __init__(self, broker: str, loop, message_handle_cb, logger=logging):
-
+        if not broker:
+            raise ValueError("MQTT URI not given")
         self.ok = True
         self.logger = logger
         self.connection = MQTTClient(
