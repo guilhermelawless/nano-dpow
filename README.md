@@ -61,4 +61,4 @@ We have made efforts to make it easier for anyone to run a DPoW server for thems
 
 ### Alternative approaches
 
-- [Delegated Proof of Work](https://anarkrypto.github.io/Delegated-Proof-of-Work/) is a P2P protocol which allows users to trustlessly request work from others. It is more inefficient than DPoW, as it requires two blocks for each request, but removes the middleman (server) which is a central point of failure of the system.
+- [P2PoW](https://anarkrypto.github.io/P2PoW) is a P2P protocol which allows users to trustlessly request work from others. It is more inefficient than DPoW, as it requires two blocks for each request, but removes the middleman (server) which is a central point of failure of the system.
