@@ -153,7 +153,6 @@ class DpowClient(object):
         if self.work_handler:
             await self.work_handler.stop()
 
-    @asyncio.coroutine
     async def run(self):
         logger.info(WELCOME)
         if not await self.setup():
@@ -165,7 +164,6 @@ class DpowClient(object):
             self.work_handler.loop()
         )
 
-    @asyncio.coroutine
     async def heartbeat_check_loop(self):
         while self.running:
             try:
@@ -180,7 +178,6 @@ class DpowClient(object):
                 if self.running:
                     logger.error(f"Heartbeat check failure: {e}")
 
-    @asyncio.coroutine
     async def message_loop(self):
         while self.running:
             try:

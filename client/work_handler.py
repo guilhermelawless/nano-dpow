@@ -95,7 +95,6 @@ class WorkHandler(object):
             self.work_queue.try_remove(item)
             await self.error_callback()
 
-    @asyncio.coroutine
     async def loop(self):
         while 1:
             try:
