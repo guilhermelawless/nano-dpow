@@ -17,6 +17,9 @@ class DpowConfig(object):
         parser.add_argument('--throttle', type=float, default=1.0, help='The number of requests each service can do every second. Minimum 0.1, default 1.0')
 
         parser.add_argument('--difficulty', type=str, default='', help='Difficulty threshold, example fffffff800000000 . By default, the Nano main network threshold is used')
+
+        parser.add_argument('--enable_precache', action='store_true', help='Enable precaching. Mode not fully tested. To fully enable, provide either --websocket_uri or use the HTTP callback at /block/ port 5040')
+
         args = parser.parse_args()
 
         self.web_path = args.web_path
@@ -30,3 +33,5 @@ class DpowConfig(object):
         self.throttle = args.throttle
 
         self.difficulty = args.difficulty
+
+        self.enable_precache = args.enable_precache

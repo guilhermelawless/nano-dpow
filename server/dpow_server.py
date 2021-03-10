@@ -42,13 +42,13 @@ class DpowServer(object):
         self.service_throttlers = defaultdict(lambda: Throttler(rate_limit=config.throttle*1, period=1))
         self.database = DpowRedis("redis://localhost", loop)
         self.mqtt = DpowMQTT(config.mqtt_uri, loop, self.client_handler, logger=logger)
-        if config.websocket_uri:
+        if config.enable_precache and config.websocket_uri:
             self.websocket = WebsocketClient(config.websocket_uri, self.block_arrival_ws_handler, logger=logger)
         else:
             self.websocket = None
         self.base_difficulty = config.difficulty or nanolib.work.WORK_DIFFICULTY
 
-        logger.info(f"Configured throttle: {config.throttle}, base difficulty: {self.base_difficulty}, max_multiplier: {config.max_multiplier}")
+        logger.info(f"Configured throttle: {config.throttle}, base difficulty: {self.base_difficulty}, max_multiplier: {config.max_multiplier}.\nPrecache mode is {config.enable_precache}")
 
     async def setup(self):
         await asyncio.gather(
@@ -456,7 +456,7 @@ def main():
 
     # use websockets or callback from the node
     app_blocks = None
-    if not config.websocket_uri:
+    if config.enable_precache and not config.websocket_uri:
         app_blocks = web.Application(middlewares=[web.normalize_path_middleware()])
         app_blocks.router.add_post('/block/', server.block_arrival_cb_handler)
         handler_blocks = app_blocks.make_handler()
