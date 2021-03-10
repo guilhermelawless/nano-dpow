@@ -2,24 +2,9 @@
 
 A DPoW service requests proofs of work from the DPoW server. In order to prevent potential spam, we need to consider and evaluate each service individually.
 
-## Rules
-
-By using DPoW as a service, you accept the following conditions:
-
-- Spamming requests or acting with general malicious intent towards DPoW or the Nano network is explicitly forbidden with the exception of pre-announced tests.
-- You must be of non-profit nature to use DPoW. Exceptions are possible but must be requested explicitly.
-- No availability, reliability and/or warranty guarantees are provided.
-- Failing to meet any of these conditions will result in revoking of your privileges to use DPoW.
-
 ## Apply to use
 
-Please send an e-mail to nano.dpow@gmail.com containing the following details:
-
-- Name, description and website (if available) of the service
-- Business model of the service
-- If you allow your information to be public (name, website, and request counters). In this case, you might get visibility on DPoW dashboards
-
-In the event that you don't get a reply within 48 hours, please contact us on The Nano Center [discord server](https://discord.nanocenter.org).
+Applications are currently closed due to a large number of registered services. For alternatives, check out the Nano Center [discord server](https://discord.nanocenter.org).
 
 ## How to use
 
