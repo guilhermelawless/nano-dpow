@@ -1,3 +1,4 @@
-hbmqtt
 aiohttp
 requests
+# hbmqtt # disabled until python3.9 is supported, alternative below
+git+git://github.com/Yakifo/aio-hbmqtt@4a9594e
