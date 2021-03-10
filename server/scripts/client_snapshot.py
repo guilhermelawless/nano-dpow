@@ -12,6 +12,10 @@ def nano_valid_address(string):
     return p.match(string)
 
 
+def dpow_address(string):
+    return string == "nano_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7" or string == "xrb_1dpowzkw9u6annz4z48aixw6oegeqicpozaajtcnjom3tqa3nwrkgsk6twj7"
+
+
 r = redis.StrictRedis(host="localhost", port=6379)
 
 clients = r.smembers("clients")
@@ -23,6 +27,9 @@ payouts = defaultdict(lambda: {"precache": 0, "ondemand": 0, "id": str(uuid4())}
 for client in clients:
     if not nano_valid_address(client):
         print("!Skipping client '{}' as it is an invalid Nano account!\n\n".format(client))
+        continue
+    if dpow_address(client):
+        print("!Skipping '{}' as it is the dpow account!\n\n".format(client))
         continue
     client_info = r.hgetall(f"client:{client}")
     if not client_info:
