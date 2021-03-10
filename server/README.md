@@ -118,3 +118,14 @@ If you followed the previous instructions, the server should be running as a ser
   python3 scripts/services.py --add test_service
   ```
 3. Perform a request either using HTTPS POST or WSS. For HTTPS POST, see the [random_hash_request.py](../service/random_hash_request.py) example and edit the file to point the request to your server. If there are clients connected the request should be fulfilled, otherwise it will return a timeout error after 10 seconds.
+
+## Configuration
+
+See file `nano-dpow/server/dpow/config.py` for some available configuration options
+
+## Payouts
+
+Inside `nano-dpow/server/scripts` run:
+
+- `python3 client_snapshot.py` to create a snapshot of work provided by clients since the last snapshot. This creates `PAYOUTS_FILE` in this directory.
+- `python3 payouts.py --help` to learn how to use it
