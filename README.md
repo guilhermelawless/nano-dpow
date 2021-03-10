@@ -46,12 +46,12 @@ We have made efforts to make it easier for anyone to run a DPoW server for thems
 
 ### Projects using DPoW
 
-- [NanoSpeed](http://nanospeed.live/) - a place to try out Nano in seconds
-- [Nanovault](http://nanovault.io/) - a light web wallet with Ledger support
-- [Natrium](http://natrium.io/) - a light mobile wallet
-- [Nano-Faucet](http://nano-faucet.org/) - a place to get some Nano, instantly
-- [@nanotipbot](http://nanotipbot.com/) - tip other people on Twitter with Nano
-- [Nano Tipper](http://reddittipbot.com/) - tip bot for Reddit
+- [Nault](https://nault.cc/) - a light web wallet with Ledger support
+- [NanoSpeed](https://nanospeed.live/) - a place to try out Nano in seconds
+- [Natrium](https://natrium.io/) - a light mobile wallet
+- [Nano-Faucet](https://nano-faucet.org/) - a place to get some Nano, instantly
+- [@nanotipbot](https://nanotipbot.com/) - tip other people on Twitter with Nano
+- [Nano Tipper](https://reddittipbot.com/) - tip bot for Reddit
 - And [more](https://dpow.nanocenter.org/), some service information is kept private
 
 ### DPoW servers deployed
