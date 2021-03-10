@@ -36,6 +36,9 @@ class DpowServer(object):
     # If there is precache work available with difficulty higher than FORCE_ONDEMAND_THRESHOLD * REQUESTED_DIFFICULTY, it is used instead of requesting the higher difficulty
     FORCE_ONDEMAND_THRESHOLD = 0.8  # <= 1
 
+    # Some outstanding bugs need to be resolved, for now force multiplier=1. Can also be useful during a work difficulty transition phase.
+    FORCE_ONLY_BASE_DIFFICULTY = True
+
     def __init__(self):
         self.last_block = None
         self.work_futures = dict()
@@ -267,13 +270,16 @@ class DpowServer(object):
             except ValueError:
                 raise InvalidRequest("Invalid difficulty")
 
-            if difficulty:
-                multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=self.base_difficulty)
-                if multiplier > config.max_multiplier:
-                    raise InvalidRequest(
-                        f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(config.max_multiplier, base_difficulty=self.base_difficulty)} ( {config.max_multiplier} multiplier )")
-                elif multiplier < 1.0:
-                    raise InvalidRequest(f"Difficulty too low. Minimum: 1.0")
+            if not DpowServer.FORCE_ONLY_BASE_DIFFICULTY:
+                if difficulty:
+                    multiplier = nanolib.work.derive_work_multiplier(difficulty, base_difficulty=self.base_difficulty)
+                    if multiplier > config.max_multiplier:
+                        raise InvalidRequest(
+                            f"Difficulty too high. Maximum: {nanolib.work.derive_work_difficulty(config.max_multiplier, base_difficulty=self.base_difficulty)} ( {config.max_multiplier} multiplier )")
+                    elif multiplier < 1.0:
+                        raise InvalidRequest(f"Difficulty too low. Minimum: 1.0")
+            else:
+                difficulty = self.base_difficulty
 
             # Check if hash in redis db, if so return work
             work = await self.database.get(f"block:{block_hash}")
@@ -285,16 +291,17 @@ class DpowServer(object):
             work_type = "ondemand"
             if work and work != DpowServer.WORK_PENDING:
                 work_type = "precache"
-                if difficulty:
-                    precached_difficulty = nanolib.work.get_work_value(block_hash, work, as_hex=True)
-                    precached_multiplier = nanolib.work.derive_work_multiplier(precached_difficulty, base_difficulty=self.base_difficulty)
-                    if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * multiplier:
-                        # Force ondemand since the precache difficulty is not close enough to requested difficulty
-                        work_type = "ondemand"
-                        await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, config.block_expiry)
-                        logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {multiplier}")
-                    else:
-                        difficulty = precached_difficulty
+                if not DpowServer.FORCE_ONLY_BASE_DIFFICULTY:
+                    if difficulty:
+                        precached_difficulty = nanolib.work.get_work_value(block_hash, work, as_hex=True)
+                        precached_multiplier = nanolib.work.derive_work_multiplier(precached_difficulty, base_difficulty=self.base_difficulty)
+                        if precached_multiplier < DpowServer.FORCE_ONDEMAND_THRESHOLD * multiplier:
+                            # Force ondemand since the precache difficulty is not close enough to requested difficulty
+                            work_type = "ondemand"
+                            await self.database.insert_expire(f"block:{block_hash}", DpowServer.WORK_PENDING, config.block_expiry)
+                            logger.info(f"Forcing ondemand: precached {precached_multiplier} vs requested {multiplier}")
+                        else:
+                            difficulty = precached_difficulty
 
             if work_type == "ondemand":
                 # Set work type
