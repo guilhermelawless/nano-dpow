@@ -48,6 +48,8 @@ class DpowServer(object):
             self.websocket = None
         self.base_difficulty = config.difficulty or nanolib.work.WORK_DIFFICULTY
 
+        logger.info(f"Configured throttle: {config.throttle}, base difficulty: {self.base_difficulty}, max_multiplier: {config.max_multiplier}")
+
     async def setup(self):
         await asyncio.gather(
             self.database.setup(),
@@ -231,10 +233,10 @@ class DpowServer(object):
         # Verify API Key
         db_key = await self.database.hash_get(f"service:{service}", "api_key")
         if db_key is None:
-            logger.info(f"Received request with non existing service {service}")
+            logger.debug(f"Received request with non existing service {service}")
             raise InvalidRequest("Invalid credentials")
         elif not api_key == db_key:
-            logger.info(f"Received request with non existing api key {api_key} for service {service}")
+            logger.debug(f"Received request with non existing api key {api_key} for service {service}")
             raise InvalidRequest("Invalid credentials")
 
         async with self.service_throttlers[service]:
@@ -359,7 +361,10 @@ class DpowServer(object):
                 logger.critical(f"Work could not be validated! Request difficulty {difficulty or self.base_difficulty} result difficulty {nanolib.work.get_work_value(block_hash, work, as_hex=True)} , hash {block_hash} work {work} type {work_type} DB difficulty {db_difficulty}")
 
             response = {'work': work, 'hash': block_hash}
-            logger.info(f"Request handled for {service} -> {work_type} : {data} : {work}")
+            try:
+                logger.info(f"Request handled for {service} -> {work_type} : {data} : {work}")
+            except Exception as e:
+                logger.error(e)
 
         return response
 
