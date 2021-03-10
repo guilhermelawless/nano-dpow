@@ -129,3 +129,7 @@ Inside `nano-dpow/server/scripts` run:
 
 - `python3 client_snapshot.py` to create a snapshot of work provided by clients since the last snapshot. This creates `PAYOUTS_FILE` in this directory.
 - `python3 payouts.py --help` to learn how to use it
+
+## Web dashboard
+
+A dashboard was created by [mitche50](https://github.com/mitche50). See https://github.com/mitche50/dpow-mqtt for setup instructions. If you followed the dpow server setup above, then the username should be `dpowinterface`.
