@@ -8,7 +8,7 @@ from sys import argv
 from random_hash_request import get_random_request
 
 async def main():
-    async with websockets.connect(f"wss://dpow.nanocenter.org/service_ws/") as websocket:
+    async with websockets.connect(f"wss://dpow-api.nanos.cc/service_ws/") as websocket:
 
         for i in range(int(argv[3])):
             request = get_random_request()

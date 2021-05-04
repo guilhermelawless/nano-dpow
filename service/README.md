@@ -20,8 +20,8 @@ The second option is to integrate the DPoW API into your application's code.
 
 You can request work using `POST` requests or websocket connections. We recommend using websockets, as some operating systems will perform an SSL handshake for each `POST` request, adding latency (at least 200 millisseconds).
 
-- `POST` requests should be sent to `https://dpow.nanocenter.org/service/`. An [example](random_hash_request.py) is provided.
-- Websocket connections should target `wss://dpow.nanocenter.org/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
+- `POST` requests should be sent to `https://dpow.nanos.cc/service/`. An [example](random_hash_request.py) is provided.
+- Websocket connections should target `wss://dpow.nanos.cc/service_ws/`. An [example](websocket_test.py) is provided. You should try to keep the websocket connection alive.
 
 #### Request
 
