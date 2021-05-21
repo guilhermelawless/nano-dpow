@@ -12,7 +12,6 @@ These steps will guide you on how to setup a new work client. The nano-work-serv
 
 - Download the [latest version](https://github.com/guilhermelawless/nano-dpow/releases) and extract.
 - Open a console under `nano-dpow/client`. On Windows, shift + right-click and "Open Powershell window here".
-- If using Python 3.9 or higher, run `git checkout python3.9-client-fix`
 - `pip3 install --user -r requirements.txt`
 
 ## Running
