@@ -2,7 +2,7 @@ import paho.mqtt.client as mqtt
 import json
 from time import perf_counter
 
-host = "dpow.nanocenter.org"
+host = "dpow.nanos.cc"
 user = 'dpowinterface'
 password = None
 works = dict()

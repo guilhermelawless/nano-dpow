@@ -25,6 +25,6 @@ if __name__ == "__main__":
     json_request = get_random_request()
     print(json_request)
     start_time = time.time()
-    r = requests.post('https://dpow.nanocenter.org/service/', json=json_request)
+    r = requests.post('https://dpow-api.nanos.cc/service/', json=json_request)
     complete_time = time.time()
     print(r.text + "\nTook: " + str(complete_time - start_time))
