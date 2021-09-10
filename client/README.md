@@ -37,8 +37,13 @@ You need to find out what your GPU vendor/device numbers are if you're going to 
 
 ### Windows
 #### Running as a CMD process
-1. Edit the file `run_windows.bat` with your desired DPoW client configuration.
-2. Run (double-click) the file `run_windows.bat`
+1. Check `/bin/windows/nano-work-server.exe --help` for information on how to select your GPU (or CPU).
+2. Run the work server:
+  ```bash
+  /bin/windows/nano-work-server.exe --gpu 0:0 -l 127.0.0.1:7000
+  ```
+3. Edit the file `run_windows.bat` with your desired DPoW client configuration.
+4. Run (double-click) the file `run_windows.bat`
 
 #### Running in the background
 **NOTE:** There is no (easy) way to stop the client once started, other than by restarting the PC. It is also recommended that you test your config with the non-background version first, as errors won't provide any output.
