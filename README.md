@@ -1,5 +1,7 @@
 # Nano DPoW
 
+⛔️ No longer maintained! ⛔️
+
 <img src="static/logo.png" align="right" width="320" alt="DPoW"/></p>
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.nanocenter.org)
